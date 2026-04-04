@@ -46,6 +46,7 @@ SRCS += \
 	$(PERIPHERAL_DIR)/src/ch32x035_spi.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_tim.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_pwr.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_dma.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_flash.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_misc.c
 

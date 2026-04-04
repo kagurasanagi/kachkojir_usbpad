@@ -309,7 +309,7 @@ void USBH_Process(void)
     {
         if (s == ROOT_DEV_CONNECTED)
         {
-            printf("Device Attached (Status=%d)\r\n", s);
+            printf("Device Attached\r\n");
             uint8_t enum_res = USBH_EnumRootDevice();
             if (enum_res == ERR_SUCCESS)
             {
@@ -317,16 +317,17 @@ void USBH_Process(void)
                 {
                     GAMEPAD_AnalyzeConfigDesc(0, RootHubDev.bEp0MaxPks);
                     Gamepad_Status = GAMEPAD_ENUMERATED;
-                    printf("Gamepad Enumerated Success\r\n");
+                    printf("Gamepad OK (EP0=%d, Intf=%d)\r\n",
+                           RootHubDev.bEp0MaxPks, HostCtl[0].InterfaceNum);
                 }
                 else
                 {
-                    printf("Unknown HID Type: %d\r\n", RootHubDev.bType);
+                    printf("Not HID: type=%d\r\n", RootHubDev.bType);
                 }
             }
             else
             {
-                printf("Enum Failed Error: %02x\r\n", enum_res);
+                printf("Enum Fail: %02x\r\n", enum_res);
             }
         }
         else if (s == ROOT_DEV_DISCONNECT)
@@ -339,7 +340,8 @@ void USBH_Process(void)
         }
         else if (s == ROOT_DEV_FAILED)
         {
-            printf("Port Root Dev Failed (%d)\r\n", s);
+            /* Reset to DISCONNECT so the state machine can re-detect */
+            s = ROOT_DEV_DISCONNECT;
         }
         last_status = s;
     }
