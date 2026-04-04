@@ -1,4 +1,5 @@
 BUILD_DIR = build
+OBJ_DIR = $(BUILD_DIR)/obj
 TARGET = $(BUILD_DIR)/kachkojir_usbpad
 
 # Toolchain definitions
@@ -10,56 +11,77 @@ SIZE = $(TOOLCHAIN_PATH)size
 
 # SDK Paths
 SDK_DIR = SDK/EVT/EXAM/SRC
-PERIPHERAL_DIR = $(SDK_DIR)/Peripheral
 CORE_DIR = $(SDK_DIR)/Core
-DEBUG_DIR = $(SDK_DIR)/Debug
-STARTUP_DIR = $(SDK_DIR)/Startup
+PERIPHERAL_DIR = $(SDK_DIR)/Peripheral
 LD_DIR = $(SDK_DIR)/Ld
 
 # Include paths
 INCLUDES = \
 	-Iinclude \
 	-Isrc \
+	-Isrc/usb_host \
 	-I$(CORE_DIR) \
-	-I$(DEBUG_DIR) \
 	-I$(PERIPHERAL_DIR)/inc
 
-# Source files
+# Source files (App)
 SRCS = \
-	$(wildcard src/*.c) \
-	$(wildcard $(PERIPHERAL_DIR)/src/*.c) \
-	$(DEBUG_DIR)/debug.c
+	src/main.c \
+	src/debug.c \
+	src/system_ch32x035.c \
+	src/spi_slave.c
 
-ASMS = \
-	$(STARTUP_DIR)/startup_ch32x035.S
+# Source files (USB Host Service Layer)
+SRCS += \
+	src/usb_host/ch32x035_usbfs_host.c \
+	src/usb_host/ch32x035_it.c \
+	src/usb_host/usb_host_gamepad.c \
+	src/usb_host/usb_host_hid.c \
+	src/usb_host/usb_host_hub.c
 
-# Object files (place in build directory)
-OBJS = $(addprefix $(BUILD_DIR)/, $(SRCS:.c=.o)) $(addprefix $(BUILD_DIR)/, $(ASMS:.S=.o))
+# Source files (SDK Peripherals)
+SRCS += \
+	$(PERIPHERAL_DIR)/src/ch32x035_gpio.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_usart.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_rcc.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_spi.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_tim.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_pwr.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_flash.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_misc.c
+
+# Startup file
+ASMS = $(SDK_DIR)/Startup/startup_ch32x035.S
+
+# Object files (placed in OBJ_DIR)
+OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o))) $(addprefix $(OBJ_DIR)/, $(notdir $(ASMS:.S=.o)))
+
+# Search paths for source files (VPATH)
+VPATH = src:src/usb_host:$(PERIPHERAL_DIR)/src:$(SDK_DIR)/Startup
 
 # Compilation flags
-CFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -msmall-data-limit=8 -mno-save-restore -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -Wunused -Wuninitialized -g $(INCLUDES)
-ASFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -x assembler-with-cpp $(INCLUDES) -c
+CFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -msmall-data-limit=8 -mno-save-restore -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -Wunused -Wuninitialized -g $(INCLUDES) -DCH32X035
+ASFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -x assembler-with-cpp $(INCLUDES) -c -DCH32X035
 LDFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -T $(LD_DIR)/Link.ld -nostartfiles -Xlinker --gc-sections -Wl,-Map,$(TARGET).map --specs=nano.specs --specs=nosys.specs
 
 .PHONY: all clean flash
 
-all: $(BUILD_DIR) $(TARGET).elf $(TARGET).bin $(TARGET).hex
+all: $(BUILD_DIR) $(OBJ_DIR) $(TARGET).elf $(TARGET).bin $(TARGET).hex
 
 $(BUILD_DIR):
 	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
-	@if not exist $(BUILD_DIR)\src mkdir $(BUILD_DIR)\src
-	@if not exist $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Peripheral\src mkdir $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Peripheral\src
-	@if not exist $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Debug mkdir $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Debug
-	@if not exist $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Startup mkdir $(BUILD_DIR)\SDK\EVT\EXAM\SRC\Startup
+
+$(OBJ_DIR):
+	@if not exist $(OBJ_DIR) mkdir build\obj
 
 $(TARGET).elf: $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) -o $@
 	$(SIZE) $@
 
-$(BUILD_DIR)/%.o: %.c
+# Build rules
+$(OBJ_DIR)/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%.o: %.S
+$(OBJ_DIR)/%.o: %.S
 	$(AS) $(ASFLAGS) $< -o $@
 
 %.bin: %.elf
@@ -72,6 +94,4 @@ clean:
 	@if exist $(BUILD_DIR) rd /s /q $(BUILD_DIR)
 
 flash: $(TARGET).bin
-	# Example using minichlink or wch-openocd
-	# minichlink -w $(TARGET).bin 0x08000000 -r
 	@echo "Flashing: $(TARGET).bin"

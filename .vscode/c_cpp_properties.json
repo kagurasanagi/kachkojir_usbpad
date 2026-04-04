@@ -4,20 +4,19 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Core/**",
-                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Peripheral/inc/**",
-                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Debug/**",
-                "${workspaceFolder}/src/**"
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Core",
+                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Peripheral/inc",
+                "${workspaceFolder}/SDK/EVT/EXAM/SRC/Debug"
             ],
             "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
+                "CH32X035"
             ],
-            "compilerPath": "riscv-none-elf-gcc",
+            "compilerPath": "C:/lib/xpack-riscv-none-elf-gcc-15.2.0-1/bin/riscv-none-elf-gcc.exe",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-gcc-x64",
+            "intelliSenseMode": "linux-gcc-arm64",
             "browse": {
                 "path": [
                     "${workspaceFolder}/**"

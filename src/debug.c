@@ -93,7 +93,7 @@ void USART_Printf_Init(uint32_t baudrate)
     GPIO_InitTypeDef  GPIO_InitStructure;
     USART_InitTypeDef USART_InitStructure;
 
-#if(DEBUG == DEBUG_UART1)
+    /* UART1 on Pin 21 (PB10) - this is the DEFAULT mapping, no remap needed */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOB, ENABLE);
 
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
@@ -101,46 +101,15 @@ void USART_Printf_Init(uint32_t baudrate)
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
-#elif(DEBUG == DEBUG_UART2)
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-#elif(DEBUG == DEBUG_UART3)
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
-
-#endif
-
-    USART_InitStructure.USART_BaudRate = baudrate;
+    USART_InitStructure.USART_BaudRate = baudrate; /* FIXED: Use argument baudrate */
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
     USART_InitStructure.USART_Parity = USART_Parity_No;
     USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_InitStructure.USART_Mode = USART_Mode_Tx;
 
-#if(DEBUG == DEBUG_UART1)
     USART_Init(USART1, &USART_InitStructure);
     USART_Cmd(USART1, ENABLE);
-
-#elif(DEBUG == DEBUG_UART2)
-    USART_Init(USART2, &USART_InitStructure);
-    USART_Cmd(USART2, ENABLE);
-
-#elif(DEBUG == DEBUG_UART3)
-    USART_Init(USART3, &USART_InitStructure);
-    USART_Cmd(USART3, ENABLE);
-
-#endif
 }
 
 /*********************************************************************
@@ -212,13 +181,15 @@ int _write(int fd, char *buf, int size)
 #else
     for(i = 0; i < size; i++){
 #if(DEBUG == DEBUG_UART1)
-        while(USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET);
+        /* INDUSTRY STANDARD: Wait for TXE (Transmit Buffer Empty) instead of TC (Transmit Complete) 
+         * This avoids hanging on the very first character at boot. */
+        while(USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
         USART_SendData(USART1, *buf++);
 #elif(DEBUG == DEBUG_UART2)
-        while(USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET);
+        while(USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET);
         USART_SendData(USART2, *buf++);
 #elif(DEBUG == DEBUG_UART3)
-        while(USART_GetFlagStatus(USART3, USART_FLAG_TC) == RESET);
+        while(USART_GetFlagStatus(USART3, USART_FLAG_TXE) == RESET);
         USART_SendData(USART3, *buf++);
 #endif
     }

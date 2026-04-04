@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 #include "usb_host_config.h"
+#include <stdint.h>
 
 /* USB Gamepad Status */
 #define GAMEPAD_DISCONNECT          0
@@ -22,11 +23,13 @@ extern "C" {
 
 /* External Variables */
 extern uint8_t Gamepad_Status;
+extern uint32_t Current_System_Time;
 
 /* Public Functions */
+void USB_Host_Init_Sequence(void);
 void USBH_MainInterrupt(void);
 void USBH_Process(void);
-void Gamepad_Timer_Init(uint16_t arr, uint16_t psc);
+void TIM3_Init(uint16_t arr, uint16_t psc);
 
 #ifdef __cplusplus
 }

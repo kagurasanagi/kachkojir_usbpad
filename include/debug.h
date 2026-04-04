@@ -42,6 +42,7 @@ void Delay_Init(void);
 void Delay_Us(uint32_t n);
 void Delay_Ms(uint32_t n);
 void USART_Printf_Init(uint32_t baudrate);
+void USART1_Remap_Set(uint8_t remap_type);
 void SDI_Printf_Enable(void);
 
 #if(DEBUG)

@@ -20,6 +20,7 @@ extern "C" {
 
 /******************************************************************************/
 /* Header File */
+#include "ch32x035.h"
 #include "string.h"
 #include "debug.h"
 #include <ch32x035_usb.h>
@@ -49,6 +50,7 @@ extern "C" {
 #define DEF_ONE_USB_SUP_DEV_TOTAL   5
 #define DEF_NEXT_HUB_PORT_NUM_MAX   4
 #define DEF_INTERFACE_NUM_MAX       4
+#define DEF_COM_BUF_LEN             1024
 
 /* USB Root Device Status */
 #define ROOT_DEV_DISCONNECT         0

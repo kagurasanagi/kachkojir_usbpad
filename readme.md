@@ -11,8 +11,8 @@ CH32X035G8U6のUSB Host機能およびSPI Slave機能を活用し、極低遅延
 
 | 機能 | ピン番号 | ピン名 | 接続先 / 備考 |
 | :--- | :---: | :--- | :--- |
-| **USB D+** | 27 | **PC17 (UDP)** | USBパッド D+ |
-| **USB D-** | 26 | **PC16 (UDM)** | USBパッド D- |
+| **USB D+** | 23 | **PA12 (UDP)** | USBパッド D+ |
+| **USB D-** | 22 | **PA11 (UDM)** | USBパッド D- |
 | **SPI NSS** | 9 | **PA4 (CS)** | RP2350 CS (物理同期) |
 | **SPI SCK** | 10 | **PA5 (SCK)** | RP2350 SCK |
 | **SPI MISO** | 11 | **PA6 (MISO)** | RP2350 MISO (データ出力) |
