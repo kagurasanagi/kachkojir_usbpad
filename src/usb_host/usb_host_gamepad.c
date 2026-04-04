@@ -362,14 +362,19 @@ void USBH_Process(void)
                     {
                         Gamepad_Data_Map(Gamepad_Report_Buf, len);
 
-                        if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
+                        /* Ignore the last 8 bytes (custom extensions like IMU/Accel) for change detection */
+                        uint16_t relevant_len = (len > 8) ? (len - 8) : len;
+
+                        if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, relevant_len) != 0)
                         {
                             printf("HID Data: ");
-                            for(int i=0; i<len; i++) printf("%02x ", Gamepad_Report_Buf[i]);
+                            for(int i=0; i<relevant_len; i++) printf("%02x ", Gamepad_Report_Buf[i]);
                             printf("\r\n");
+                            
+                            /* Update previous report buffer for comparison next time */
                             memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
                             
-                            // Visual Feedback: Toggle LED
+                            // Visual Feedback: Toggle LED when actual buttons/sticks move
                             GPIO_WriteBit(GPIOA, GPIO_Pin_0, !GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_0));
                         }
                     }
