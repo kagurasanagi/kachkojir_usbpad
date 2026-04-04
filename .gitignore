@@ -1,0 +1,11 @@
+/build/
+*.bin
+*.elf
+*.hex
+*.map
+*.o
+.gdb_history
+# VS Code
+.vscode/ipch/
+.vscode/msvc.cache
+.vscode/browse.vc.db
