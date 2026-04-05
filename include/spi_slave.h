@@ -15,12 +15,24 @@ extern "C" {
 
 #include "ch32x035.h"
 
-/* SPI Slave Buffer Size */
-#define SPI_BUFF_SIZE    3
+/* SPI Slave Buffer Size (Enough for HID report) */
+#define SPI_BUFF_SIZE    64
 
-/* External Variables */
-extern uint8_t SPI_Tx_Buf[SPI_BUFF_SIZE];
-extern uint8_t SPI_Rx_Buf[SPI_BUFF_SIZE];
+/* SPI Command IDs (v1.9) */
+#define CMD_GET_PAD_INPUT       0x01
+#define CMD_GET_PAD_RAW         0x02
+#define CMD_GET_PAD_RAW_LEN     0x03
+#define CMD_GET_SYS_STATUS      0x10
+#define CMD_GET_DEVICE_ID       0x11
+#define CMD_GET_FW_VERSION      0xFE
+
+/* External Variables from usb_host_gamepad.c */
+extern uint8_t  Gamepad_Status;
+extern uint16_t Gamepad_VID;
+extern uint16_t Gamepad_PID;
+extern uint8_t  Gamepad_Raw_Len;
+extern uint8_t  Gamepad_Report_Buf[64];
+extern uint8_t  Gamepad_SPI_Final[3];
 
 /* Public Functions */
 void SPI1_Slave_Init(void);

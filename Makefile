@@ -42,6 +42,7 @@ SRCS += \
 # Source files (SDK Peripherals)
 SRCS += \
 	$(PERIPHERAL_DIR)/src/ch32x035_gpio.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_exti.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_usart.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_rcc.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_spi.c \

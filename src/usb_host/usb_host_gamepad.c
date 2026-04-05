@@ -21,11 +21,16 @@ uint8_t Gamepad_Prev_Report_Buf[64];
 uint8_t Gamepad_SPI_Prev[3] = {0}; // For 24-bit binary change detection
 static uint8_t Gamepad_Comm_Ready = 0; // 1 = Communication responding after HOME button
 static uint32_t PA1_Last_Success_Time = 0; // Last system time with valid PID response
+static uint32_t Gamepad_Data_Last_Time = 0; // Last time a valid data packet (ERR_SUCCESS) arrived
 
 /* Debounce & SPI Buffer */
 uint8_t Gamepad_SPI_Final[3] = {0};
 uint32_t Button_Release_Timer[32] = {0}; // Blanking timer for each bit
 uint32_t Current_System_Time = 0;        // Incremented in TIM3
+
+uint16_t Gamepad_VID = 0;
+uint16_t Gamepad_PID = 0;
+uint8_t  Gamepad_Raw_Len = 0;
 
 #define DEBOUNCE_BLANKING_MS 8
 
@@ -168,6 +173,10 @@ ENUM_START:
     s = USBFSH_GetDeviceDescr(&RootHubDev.bEp0MaxPks, DevDesc_Buf);
     if (s != ERR_SUCCESS) goto ENUM_START;
 
+    /* Extract VID and PID */
+    Gamepad_VID = DevDesc_Buf[8] | ((uint16_t)DevDesc_Buf[9] << 8);
+    Gamepad_PID = DevDesc_Buf[10] | ((uint16_t)DevDesc_Buf[11] << 8);
+
     RootHubDev.bAddress = (uint8_t)(USB_DEVICE_ADDR);
     s = USBFSH_SetUsbAddress(RootHubDev.bEp0MaxPks, RootHubDev.bAddress);
     if (s != ERR_SUCCESS) goto ENUM_START;
@@ -274,45 +283,48 @@ void Gamepad_Debounce_Update(uint8_t bit_idx, uint8_t raw_state)
  */
 void Gamepad_Data_Map(uint8_t *report, uint16_t len)
 {
-    /* Based on readme.md v1.8 SPI specification.
-     * Byte 0: A B X Y L1 L2 R1 R2 (Bit 7-0)
-     * Byte 1: Start Select L3 R3 Up Down Left Right (Bit 7-0)
-     * Byte 2: Digitalized Analogs (L-Up/Dn... R-Rt) (Bit 7-0)
+    /* Based on user-provided HID Data:
+     * Buttons (A,B,X,Y): report[0] (0x01, 0x02, 0x04, 0x08)
+     * D-pad (Hat Switch): report[2] (0-7, 15=neutral)
+     * Sticks: LX=report[3], LY=report[4], RX=report[5], RY=report[6]
      */
-    if (len < 6) return;
+    if (len < 7) return;
 
-    /* --- Byte 0: Buttons (bit_idx 7-0) --- */
-    Gamepad_Debounce_Update(7, report[3] & 0x01); // A
-    Gamepad_Debounce_Update(6, report[3] & 0x02); // B
-    Gamepad_Debounce_Update(5, report[3] & 0x04); // X
-    Gamepad_Debounce_Update(4, report[3] & 0x08); // Y
-    Gamepad_Debounce_Update(3, report[3] & 0x10); // L1
-    Gamepad_Debounce_Update(2, report[3] & 0x20); // L2
-    Gamepad_Debounce_Update(1, report[3] & 0x40); // R1
-    Gamepad_Debounce_Update(0, report[3] & 0x80); // R2
+    /* --- Byte 0: Buttons (bit_idx 7-0) --- v1.9 Mapping: A B X Y L1 R1 L2 R2 */
+    Gamepad_Debounce_Update(7, report[0] & 0x01); // A (bit0)
+    Gamepad_Debounce_Update(6, report[0] & 0x02); // B (bit1)
+    Gamepad_Debounce_Update(5, report[0] & 0x04); // X (bit2)
+    Gamepad_Debounce_Update(4, report[0] & 0x08); // Y (bit3)
+    Gamepad_Debounce_Update(3, report[0] & 0x10); // L1 (bit4)
+    Gamepad_Debounce_Update(2, report[0] & 0x20); // R1 (bit5)
+    Gamepad_Debounce_Update(1, report[0] & 0x40); // L2 (bit6)
+    Gamepad_Debounce_Update(0, report[0] & 0x80); // R2 (bit7)
 
-    /* --- Byte 1: Controls (bit_idx 15-8) --- */
-    Gamepad_Debounce_Update(15, report[4] & 0x01); // Start
-    Gamepad_Debounce_Update(14, report[4] & 0x02); // Select
-    Gamepad_Debounce_Update(13, report[4] & 0x04); // L3
-    Gamepad_Debounce_Update(12, report[4] & 0x08); // R3
-    Gamepad_Debounce_Update(11, report[4] & 0x10); // D-pad Up
-    Gamepad_Debounce_Update(10, report[4] & 0x20); // D-pad Down
-    Gamepad_Debounce_Update(9,  report[4] & 0x40); // D-pad Left
-    Gamepad_Debounce_Update(8,  report[4] & 0x80); // D-pad Right
+    /* --- Byte 1: Controls (bit_idx 15-8) --- v1.9 Mapping: Start Select L3 R3 Up Right Down Left */
+    Gamepad_Debounce_Update(15, report[1] & 0x02); // Start (bit1)
+    Gamepad_Debounce_Update(14, report[1] & 0x01); // Select (bit0)
+    Gamepad_Debounce_Update(13, report[1] & 0x04); // L3 (bit2)
+    Gamepad_Debounce_Update(12, report[1] & 0x08); // R3 (bit3)
 
-    /* --- Byte 2: Analogs Thresholding (bit_idx 23-16) --- */
-    // Left Stick (Y=report[1], X=report[0])
-    Gamepad_Debounce_Update(23, report[1] < 0x40); // L-Up
-    Gamepad_Debounce_Update(22, report[1] > 0xC0); // L-Down
-    Gamepad_Debounce_Update(21, report[0] < 0x40); // L-Left
-    Gamepad_Debounce_Update(20, report[0] > 0xC0); // L-Right
+    // D-pad: Bit order changed to Up | Right | Down | Left
+    uint8_t dpad = report[2] & 0x0F;
+    Gamepad_Debounce_Update(11, (dpad == 0x00)); // Up
+    Gamepad_Debounce_Update(10, (dpad == 0x02)); // Right
+    Gamepad_Debounce_Update(9,  (dpad == 0x04)); // Down
+    Gamepad_Debounce_Update(8,  (dpad == 0x06)); // Left
 
-    // Right Stick (RY=report[2], RX=report[5])
-    Gamepad_Debounce_Update(19, report[2] < 0x40); // R-Up
-    Gamepad_Debounce_Update(18, report[2] > 0xC0); // R-Down
-    Gamepad_Debounce_Update(17, report[5] < 0x40); // R-Left
-    Gamepad_Debounce_Update(16, report[5] > 0xC0); // R-Right
+    /* --- Byte 2: Analogs Thresholding (bit_idx 23-16) --- Order: L-U | L-R | L-D | L-L | R-U | R-R | R-D | R-L */
+    // Left Stick (X=report[3], Y=report[4])
+    Gamepad_Debounce_Update(23, report[4] < 0x40); // L-Up
+    Gamepad_Debounce_Update(22, report[3] > 0xC0); // L-Right
+    Gamepad_Debounce_Update(21, report[4] > 0xC0); // L-Down
+    Gamepad_Debounce_Update(20, report[3] < 0x40); // L-Left
+
+    // Right Stick (X=report[5], Y=report[6])
+    Gamepad_Debounce_Update(19, report[6] < 0x40); // R-Up
+    Gamepad_Debounce_Update(18, report[5] > 0xC0); // R-Right
+    Gamepad_Debounce_Update(17, report[6] > 0xC0); // R-Down
+    Gamepad_Debounce_Update(16, report[5] < 0x40); // R-Left
 
     /* Synchronize with SPI Slave */
     SPI1_Update_Data(Gamepad_SPI_Final);
@@ -359,6 +371,7 @@ void USBH_Process(void)
             Gamepad_Status = GAMEPAD_DISCONNECT;
             memset(&HostCtl, 0, sizeof(HostCtl));
             memset(Gamepad_SPI_Final, 0, 3);
+            memset(Button_Release_Timer, 0, sizeof(Button_Release_Timer));
             SPI1_Update_Data(Gamepad_SPI_Final);
         }
         else if (s == ROOT_DEV_FAILED)
@@ -394,32 +407,13 @@ void USBH_Process(void)
 
                     if (s == ERR_SUCCESS && len > 0)
                     {
+                        Gamepad_Data_Last_Time = Current_System_Time;
+                        Gamepad_Raw_Len = (uint8_t)len;
                         Gamepad_Data_Map(Gamepad_Report_Buf, len);
 
-                        /* Ignore the last 8 bytes (custom extensions like IMU/Accel) for change detection */
-                        uint16_t relevant_len = (len > 8) ? (len - 8) : len;
-
-                        if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, relevant_len) != 0)
+                        /* Optional: Log on report change only (minimal logging) */
+                        if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
                         {
-                            printf("HID Data: ");
-                            for(int i=0; i<relevant_len; i++) printf("%02x ", Gamepad_Report_Buf[i]);
-                            printf("\r\n");
-
-                            /* Added: 24-bit binary display if mapped data changed */
-                            if (memcmp(Gamepad_SPI_Final, Gamepad_SPI_Prev, 3) != 0)
-                            {
-                                printf("PAD bits: [");
-                                for(int i=0; i<3; i++) {
-                                    for(int j=7; j>=0; j--) {
-                                        printf("%d", (Gamepad_SPI_Final[i] >> j) & 1);
-                                    }
-                                    if(i < 2) printf(" ");
-                                }
-                                printf("]\r\n");
-                                memcpy(Gamepad_SPI_Prev, Gamepad_SPI_Final, 3);
-                            }
-                            
-                            /* Update previous report buffer for comparison next time */
                             memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
                         }
                     }
@@ -434,9 +428,12 @@ void USBH_Process(void)
         /* Physically disconnected (R8_MIS_ST bit 0 == 0) */
         PA1_Last_Success_Time = Current_System_Time - 1000;
         Gamepad_Comm_Ready = 0;
+        memset(Gamepad_SPI_Final, 0, sizeof(Gamepad_SPI_Final));
+        memset(Button_Release_Timer, 0, sizeof(Button_Release_Timer));
         GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
         Gamepad_Status = GAMEPAD_DISCONNECT;
+        Gamepad_Data_Last_Time = 0;
     }
 
     /* Update Gamepad_Comm_Ready based on 100ms timeout of valid responses */
@@ -449,8 +446,9 @@ void USBH_Process(void)
     /* PA1 Ready LED: Based on communication ready status */
     GPIO_WriteBit(GPIOA, GPIO_Pin_1, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
 
-    /* PA2 Status LED: Update constantly if communication ready */
-    if (Gamepad_Comm_Ready && (Gamepad_SPI_Final[0] || Gamepad_SPI_Final[1] || Gamepad_SPI_Final[2])) {
+    /* PA2 Status LED: Update constantly if data is fresh (within 100ms) AND any bit is set */
+    uint8_t data_is_fresh = ( (Current_System_Time - Gamepad_Data_Last_Time) < 100 );
+    if (data_is_fresh && (Gamepad_SPI_Final[0] || Gamepad_SPI_Final[1] || Gamepad_SPI_Final[2])) {
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_SET);
     } else {
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
