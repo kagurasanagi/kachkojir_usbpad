@@ -38,6 +38,17 @@ void USB_Host_Init_Sequence(void)
     memset(&RootHubDev, 0, sizeof(RootHubDev));
     memset(HostCtl, 0, sizeof(HOST_CTL) * DEF_TOTAL_ROOT_HUB * DEF_ONE_USB_SUP_DEV_TOTAL);
 
+    /* LED on PA1 for gamepad activity feedback */
+    {
+        GPIO_InitTypeDef GPIO_LED = {0};
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+        GPIO_LED.GPIO_Pin = GPIO_Pin_1;
+        GPIO_LED.GPIO_Mode = GPIO_Mode_Out_PP;
+        GPIO_LED.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_Init(GPIOA, &GPIO_LED);
+        GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
+    }
+
     /* Initialize SPI Slave for RP2350 communication */
     SPI1_Slave_Init();
     SPI1_DMA_Init();
@@ -374,8 +385,8 @@ void USBH_Process(void)
                             /* Update previous report buffer for comparison next time */
                             memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
                             
-                            // Visual Feedback: Toggle LED when actual buttons/sticks move
-                            GPIO_WriteBit(GPIOA, GPIO_Pin_0, !GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_0));
+                            // Visual Feedback: Toggle LED (PA1) when actual buttons/sticks move
+                            GPIO_WriteBit(GPIOA, GPIO_Pin_1, !GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_1));
                         }
                     }
                 }

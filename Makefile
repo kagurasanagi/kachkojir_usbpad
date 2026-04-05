@@ -28,7 +28,8 @@ SRCS = \
 	src/main.c \
 	src/debug.c \
 	src/system_ch32x035.c \
-	src/spi_slave.c
+	src/spi_slave.c \
+	src/usbc_source.c
 
 # Source files (USB Host Service Layer)
 SRCS += \
