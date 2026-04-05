@@ -11,6 +11,16 @@ int main(void) {
   /* 2. UART Init: PB10 (Pin 21, Default) 115200bps */
   USART_Printf_Init(115200);
   printf("\r\n=== Kachkojir USB Pad ===\r\n");
+  
+  // Format __DATE__="Mmm DD YYYY" to "YYYY-MM-DD"
+  const char *m = __DATE__;
+  int yy = ((m[7]-'0')*1000) + ((m[8]-'0')*100) + ((m[9]-'0')*10) + (m[10]-'0');
+  int dd = ((m[4]==' '?'0':m[4])-'0')*10 + (m[5]-'0');
+  const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+  int mm = 0;
+  for(int i=0; i<12; i++) if(m[0]==months[i][0] && m[1]==months[i][1] && m[2]==months[i][2]) mm = i+1;
+  
+  printf("Build: %04d-%02d-%02d %s\r\n", yy, mm, dd, __TIME__);
 
   /* 3. USB Host Init (USBFS + SPI Slave + TIM3) */
   USB_Host_Init_Sequence();

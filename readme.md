@@ -55,16 +55,22 @@ RP2350にUSBゲームパッドを直結した場合、SDカードへのアクセ
 
 | 機能 | ピン番号 | ピン名 | 接続先 / 備考 |
 | :--- | :---: | :--- | :--- |
-| **USB D-** | 26 | **PC16 (UDM)** | USBパッド D- |
-| **USB D+** | 27 | **PC17 (UDP)** | USBパッド D+ |
-| **SPI NSS** | 9 | **PA4 (CS)** | RP2350 CS (要・手動GPIO制御) |
+| **電源 GND** | 0 | **GND** | 中心パッド (Exposed Pad) |
+| **USB-C CC2** | 1 | **PC15** | USB-C 接続検知 (CC2) |
+| **電源 VDD** | 2 | **VDD** | 3.3V 入力 |
+| **LED (Power)** | 5 | **PA0** | LoadSwitch EN (給電制御) と共用。Highで給電開始＆点灯。 |
+| **LED (Status)** | 6 | **PA1** | 有効な入力検知時にトグル点滅。 |
+| **SPI CS** | 9 | **PA4 (CS)** | RP2350 CS (要・手動GPIO制御) |
 | **SPI SCK** | 10 | **PA5 (SCK)** | RP2350 SCK |
 | **SPI MISO** | 11 | **PA6 (MISO)** | RP2350 MISO (データ出力) |
 | **SPI MOSI** | 12 | **PA7 (MOSI)** | RP2350 MOSI (コマンド入力) |
 | **UART1 TX** | 21 | **PB10** | デバッグログ出力 (115200bps) |
-| **LED** | 5 | **PA0** | 動作確認用LED (USB接続時に点灯) |
-| **電源 VDD** | 2 | **VDD** | 3.3V 入力 |
-| **電源 GND** | 0 | **GND** | 中心パッド (Exposed Pad) |
+| **UART1 RX** | 22 | **PB11** | デバッグログ入力 (115200bps) |
+| **WCH-LinkE (DCK)** | 24 | **PC19** | 書き込み (Clock) |
+| **WCH-LinkE (DIO)** | 25 | **PC18** | 書き込み (Data) |
+| **USB D- (UDM)** | 26 | **PC16** | USBパッド D- |
+| **USB D+ (UDP)** | 27 | **PC17** | USBパッド D+ |
+| **USB-C CC1** | 28 | **PC14** | USB-C 接続検知 (CCモニタリング) |
 
 ---
 
