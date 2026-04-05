@@ -59,7 +59,8 @@ RP2350にUSBゲームパッドを直結した場合、SDカードへのアクセ
 | **USB-C CC2** | 1 | **PC15** | USB-C 接続検知 (CC2) |
 | **電源 VDD** | 2 | **VDD** | 3.3V 入力 |
 | **LED (Power)** | 5 | **PA0** | LoadSwitch EN (給電制御) と共用。Highで給電開始＆点灯。 |
-| **LED (Status)** | 6 | **PA1** | 有効な入力検知時にトグル点滅。 |
+| **LED (PadEnable)** | 6 | **PA1** | USBパッドが認識された場合に点灯 |
+| **LED (Status)** | 7 | **PA2** | USBパッドでボタンが押されている状態のみ点灯 |
 | **SPI CS** | 9 | **PA4 (CS)** | RP2350 CS (要・手動GPIO制御) |
 | **SPI SCK** | 10 | **PA5 (SCK)** | RP2350 SCK |
 | **SPI MISO** | 11 | **PA6 (MISO)** | RP2350 MISO (データ出力) |
