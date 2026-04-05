@@ -8,8 +8,12 @@ int main(void) {
   SystemCoreClockUpdate();
   Delay_Init();
 
-  /* 2. UART Init: PB10 (Pin 21, Default) 115200bps */
+  /* 2. UART Init: PB10 (Pin 21, Default) 115200bps (Must be first for logs) */
   USART_Printf_Init(115200);
+
+  /* 3. USB Type-C Source Init (CC monitoring + Load Switch on PA0) */
+  USBC_Source_Init();
+
   printf("\r\n=== Kachkojir USB Pad ===\r\n");
   
   // Format __DATE__="Mmm DD YYYY" to "YYYY-MM-DD"
@@ -22,11 +26,8 @@ int main(void) {
   
   printf("Build: %04d-%02d-%02d %s\r\n", yy, mm, dd, __TIME__);
 
-  /* 3. USB Host Init (USBFS + SPI Slave + TIM3) */
+  /* 4. USB Host Init (USBFS + SPI Slave + TIM3) */
   USB_Host_Init_Sequence();
-
-  /* 4. USB Type-C Source Init (CC monitoring + Load Switch on PA0) */
-  USBC_Source_Init();
 
   /* 5. Main Loop */
   uint32_t last_cc_check = 0;
