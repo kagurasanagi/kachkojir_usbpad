@@ -122,16 +122,19 @@ void EXTI7_0_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_Line4) != RESET)
     {
+        /* Reset communication state */
         spi_rx_cnt = 0;
         spi_curr_cmd = 0;
 
-        /* Stop any active DMA transfer on CS reset */
+        /* Stop any active DMA transfer immediately on CS fall */
         DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
 
-        /* Clear any pending SPI flags */
-        (void)SPI1->DATAR;
+        /* Clear Residual Data (FIFO Flush) without adding hardware delay or fake bytes */
+        while(SPI1->STATR & SPI_STATR_RXNE) (void)SPI1->DATAR;
         (void)SPI1->STATR;
+
+        /* Clear any pending flags */
         EXTI_ClearITPendingBit(EXTI_Line4);
     }
 }
@@ -161,15 +164,6 @@ void SPI1_IRQHandler(void)
                     spi_tx_len = 3;
                     break;
 
-                case CMD_GET_PAD_RAW:     // 0x02
-                    spi_tx_ptr = Gamepad_Report_Buf;
-                    spi_tx_len = 64;
-                    break;
-
-                case CMD_GET_PAD_RAW_LEN: // 0x03
-                    spi_tx_ptr = &Gamepad_Raw_Len;
-                    spi_tx_len = 1;
-                    break;
 
                 case CMD_GET_SYS_STATUS:  // 0x10
                     spi_res_status = (Gamepad_Status >= GAMEPAD_ENUMERATED) ? 1 : 0;
@@ -199,10 +193,10 @@ void SPI1_IRQHandler(void)
 
             if (spi_tx_len > 0)
             {
-                /* Snapshot data to prevent race conditions during transmission */
-                memcpy(spi_tx_snapshot, spi_tx_ptr, spi_tx_len);
+                /* Snapshot data to prevent race conditions */
+                memcpy(spi_tx_snapshot, spi_tx_ptr, (spi_tx_len > 64) ? 64 : spi_tx_len);
 
-                /* Start DMA for jitter-free response */
+                /* PURE DMA: All response bytes handled by DMA for jitter-free consistency */
                 DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN; // Ensure disabled
                 DMA1_Channel3->MADDR = (uint32_t)spi_tx_snapshot;
                 DMA1_Channel3->CNTR = spi_tx_len;

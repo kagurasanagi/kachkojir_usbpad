@@ -93,11 +93,8 @@ RP2350にUSBゲームパッドを直結した場合、SDカードへのアクセ
 | ID (MOSI) | 名称 | 返答サイズ | 詳細 |
 | :--- | :--- | :--- | :--- |
 | **`0x01`** | **GET_PAD_INPUT** | 3 bytes | 解析済みの3バイト入力データ |
-| **`0x02`** | **GET_PAD_RAW** | 可変 | USB生レポート（長さは `0x03` で確認） |
-| **`0x03`** | **GET_PAD_RAW_LEN**| 1 byte | 現在接続中のパッドの生レポート長 |
 | **`0x10`** | **GET_SYS_STATUS** | 1 byte | USB接続状態 (0:未接続, 1:接続済) |
 | **`0x11`** | **GET_DEVICE_ID** | 4 bytes | 接続デバイスの VID (2B) + PID (2B) |
-| **`0x12`** | **GET_STR_DESC** | 可変 | 製品名文字列 (ASCII) |
 | **`0xFE`** | **GET_FW_VERSION** | 2 bytes | ファームウェア Ver (Major + Minor) |
 
 ---

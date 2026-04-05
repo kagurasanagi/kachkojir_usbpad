@@ -20,8 +20,6 @@ extern "C" {
 
 /* SPI Command IDs (v1.9) */
 #define CMD_GET_PAD_INPUT       0x01
-#define CMD_GET_PAD_RAW         0x02
-#define CMD_GET_PAD_RAW_LEN     0x03
 #define CMD_GET_SYS_STATUS      0x10
 #define CMD_GET_DEVICE_ID       0x11
 #define CMD_GET_FW_VERSION      0xFE
@@ -30,8 +28,6 @@ extern "C" {
 extern uint8_t  Gamepad_Status;
 extern uint16_t Gamepad_VID;
 extern uint16_t Gamepad_PID;
-extern uint8_t  Gamepad_Raw_Len;
-extern uint8_t  Gamepad_Report_Buf[64];
 extern uint8_t  Gamepad_SPI_Final[3];
 
 /* Public Functions */

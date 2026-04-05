@@ -249,7 +249,7 @@ uint8_t GAMEPAD_AnalyzeConfigDesc(uint8_t index, uint8_t ep0_size)
  */
 void Gamepad_Debounce_Update(uint8_t bit_idx, uint8_t raw_state)
 {
-    uint8_t byte_idx = bit_idx / 8;
+    uint8_t byte_idx = (bit_idx / 8); 
     uint8_t bit_mask = (1 << (bit_idx % 8));
 
     if (raw_state)
