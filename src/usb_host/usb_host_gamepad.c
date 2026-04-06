@@ -9,7 +9,7 @@
 #include <string.h>
 
 /*******************************************************************************/
-/* Variable Definition */
+/* 変数定義 */
 uint8_t DevDesc_Buf[18];
 uint8_t Com_Buf[DEF_COM_BUF_LEN];
 struct _ROOT_HUB_DEVICE RootHubDev;
@@ -18,64 +18,66 @@ struct __HOST_CTL HostCtl[DEF_TOTAL_ROOT_HUB * DEF_ONE_USB_SUP_DEV_TOTAL];
 uint8_t Gamepad_Status = GAMEPAD_DISCONNECT;
 uint8_t Gamepad_Report_Buf[64];
 uint8_t Gamepad_Prev_Report_Buf[64];
-uint8_t Gamepad_SPI_Prev[3] = {0}; // For 24-bit binary change detection
-static uint8_t Gamepad_Comm_Ready = 0; // 1 = Communication responding after HOME button
-static uint32_t PA1_Last_Success_Time = 0; // Last system time with valid PID response
-static uint32_t Gamepad_Data_Last_Time = 0; // Last time a valid data packet (ERR_SUCCESS) arrived
+uint8_t Gamepad_SPI_Prev[3] = {0}; // 24ビット バイナリ 変更 検出 用
+static uint8_t Gamepad_Comm_Ready = 0; // 1 = HOME ボタン後の 通信 応答 中
+static uint32_t PA1_Last_Success_Time = 0; // 有効な PID 応答 があった最後の システムタイム
+static uint32_t Gamepad_Data_Last_Time = 0; // 有効な データパケット (ERR_SUCCESS) が到着した最後の時間
 
-/* Debounce & SPI Buffer */
-uint8_t Gamepad_SPI_Final[3] = {0};
-uint32_t Button_Release_Timer[32] = {0}; // Blanking timer for each bit
-uint32_t Current_System_Time = 0;        // Incremented in TIM3
+/* 共有 バッファ (ダブルバッファリング) */
+volatile uint8_t Gamepad_Stable_Idx = 0;  // 0 または 1. 現在 SPI マスター が 読み取って良い インデックス
+uint8_t Gamepad_SPI_Data[2][3] = {{0}, {0}};
+uint8_t Gamepad_Raw_Report[2][64] = {{0}, {0}};
+uint8_t Gamepad_Raw_Report_Len[2] = {0, 0};
+uint32_t Current_System_Time = 0;        // TIM3 で インクリメント される
 
 uint16_t Gamepad_VID = 0;
 uint16_t Gamepad_PID = 0;
 uint8_t  Gamepad_Raw_Len = 0;
 
-#define DEBOUNCE_BLANKING_MS 8
+
 
 /*******************************************************************************
  * @fn      USB_Host_Init_Sequence
- * @brief   Initialize USBFS host and peripherals.
+ * @brief   USBFS ホスト と 周辺機器 を初期化します。
  */
 void USB_Host_Init_Sequence(void)
 {
-    /* Initialize USBFS host */
+    /* USBFS ホスト を初期化 */
     printf("USBFS Host Init (Supply=%dV)\r\n", (PWR_VDD_SupplyVoltage() == PWR_VDD_5V) ? 5 : 3);
     USBFS_RCC_Init();
     USBFS_Host_Init(ENABLE, PWR_VDD_SupplyVoltage());
     memset(&RootHubDev, 0, sizeof(RootHubDev));
     memset(HostCtl, 0, sizeof(HOST_CTL) * DEF_TOTAL_ROOT_HUB * DEF_ONE_USB_SUP_DEV_TOTAL);
 
-    /* LED Init: PA1 (PadEnable), PA2 (Status) 
-     * GPIOPA_CFGLR (0x40010800): PA1 Bits 7-4, PA2 Bits 11-8
-     * MODE: 11 (Output 50MHz), CNF: 00 (Push-Pull) -> 0x3
+    /* LED 初期化: PA1 (PadEnable), PA2 (ステータス) 
+     * GPIOPA_CFGLR (0x40010800): PA1 ビット 7-4, PA2 ビット 11-8
+     * モード: 11 (出力 50MHz), CNF: 00 (プッシュプル) -> 0x3
      */
     {
         RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-        GPIOA->CFGLR &= ~( (0x0F << 4) | (0x0F << 8) ); // Clear PA1, PA2 bits
-        GPIOA->CFGLR |= ( (0x03 << 4) | (0x03 << 8) );  // Set PA1, PA2 to 0x3 (PP 50M)
+        GPIOA->CFGLR &= ~( (0x0F << 4) | (0x0F << 8) ); // PA1, PA2 ビット をクリア
+        GPIOA->CFGLR |= ( (0x03 << 4) | (0x03 << 8) );  // PA1, PA2 を 0x3 (PP 50M) に設定
         GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
     }
 
-    /* Initialize SPI Slave for RP2350 communication */
+    /* RP2350 通信 用の SPI スレーブ を初期化 */
     SPI1_Slave_Init();
     SPI1_DMA_Init();
 
-    /* Initialize Timer for 1ms ticks */
+    /* 1ms ティック 用の タイマー を初期化 */
     TIM3_Init(9, SystemCoreClock / 10000 - 1);
 
     if (SystemCoreClock != 48000000)
     {
         printf("WARNING: SystemCoreClock is NOT 48MHz! USBFS may fail.\r\n");
     }
-    printf("Waiting for Gamepad...\r\n");
+    printf("ゲームパッド を待機中...\r\n");
 }
 
 /*******************************************************************************
  * @fn      TIM3_Init
- * @brief   Initialize timer3 for polling interval counting.
+ * @brief   ポーリング インターバル カウント 用の タイマー3 を初期化します。
  */
 void TIM3_Init(uint16_t arr, uint16_t psc)
 {
@@ -93,7 +95,7 @@ void TIM3_Init(uint16_t arr, uint16_t psc)
     TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
 
     NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2; // Lowered
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2; // 優先度を下げた
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
@@ -103,7 +105,7 @@ void TIM3_Init(uint16_t arr, uint16_t psc)
 
 /*******************************************************************************
  * @fn      TIM3_IRQHandler
- * @brief   Forwarding delay logic for USB endpoints.
+ * @brief   USB エンドポイント の転送 ディレイ ロジック。
  */
 void TIM3_IRQHandler(void) __attribute__((interrupt));
 void TIM3_IRQHandler(void)
@@ -112,7 +114,7 @@ void TIM3_IRQHandler(void)
     if (TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
     {
         TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-        Current_System_Time++; // 1ms tick
+        Current_System_Time++; // 1ms ティック
         if (Gamepad_Status >= GAMEPAD_ENUMERATED)
         {
             for (intf = 0; intf < HostCtl[0].InterfaceNum; intf++)
@@ -173,7 +175,7 @@ ENUM_START:
     s = USBFSH_GetDeviceDescr(&RootHubDev.bEp0MaxPks, DevDesc_Buf);
     if (s != ERR_SUCCESS) goto ENUM_START;
 
-    /* Extract VID and PID */
+    /* VID と PID を抽出 */
     Gamepad_VID = DevDesc_Buf[8] | ((uint16_t)DevDesc_Buf[9] << 8);
     Gamepad_PID = DevDesc_Buf[10] | ((uint16_t)DevDesc_Buf[11] << 8);
 
@@ -243,91 +245,64 @@ uint8_t GAMEPAD_AnalyzeConfigDesc(uint8_t index, uint8_t ep0_size)
     return ERR_SUCCESS;
 }
 
-/*******************************************************************************
- * @fn      Gamepad_Debounce_Update
- * @brief   Response-Priority Debounce: Instant Press, Blanking Release.
- */
-void Gamepad_Debounce_Update(uint8_t bit_idx, uint8_t raw_state)
-{
-    uint8_t byte_idx = (bit_idx / 8); 
-    uint8_t bit_mask = (1 << (bit_idx % 8));
-
-    if (raw_state)
-    {
-        /* Instant Press */
-        Gamepad_SPI_Final[byte_idx] |= bit_mask;
-        Button_Release_Timer[bit_idx] = 0; // Reset timer on press
-    }
-    else
-    {
-        /* Release with Blanking */
-        if (Gamepad_SPI_Final[byte_idx] & bit_mask)
-        {
-            if (Button_Release_Timer[bit_idx] == 0)
-            {
-                Button_Release_Timer[bit_idx] = Current_System_Time;
-            }
-            else if ((Current_System_Time - Button_Release_Timer[bit_idx]) >= DEBOUNCE_BLANKING_MS)
-            {
-                Gamepad_SPI_Final[byte_idx] &= ~bit_mask;
-                Button_Release_Timer[bit_idx] = 0;
-            }
-        }
-    }
-}
 
 /*******************************************************************************
  * @fn      Gamepad_Data_Map
- * @brief   Map HID report bits to SPI buffer and apply debouncing.
- *          Note: This assumes a common X-Input / Standard HID layout.
+ * @brief   HID レポート ビット を SPI バッファ に直接 マップ します。
+ *          ダブルバッファリング を使用して ティアリング を防止します。
  */
 void Gamepad_Data_Map(uint8_t *report, uint16_t len)
 {
-    /* Based on user-provided HID Data:
-     * Buttons (A,B,X,Y): report[0] (0x01, 0x02, 0x04, 0x08)
-     * D-pad (Hat Switch): report[2] (0-7, 15=neutral)
-     * Sticks: LX=report[3], LY=report[4], RX=report[5], RY=report[6]
-     */
+    uint8_t write_idx = 1 - Gamepad_Stable_Idx; // 現在 SPI マスター が 読んでいない 方 に 書き込む
+
     if (len < 7) return;
 
-    /* --- Byte 0: Buttons (bit_idx 7-0) --- v1.9 Mapping: A B X Y L1 R1 L2 R2 */
-    Gamepad_Debounce_Update(7, report[0] & 0x01); // A (bit0)
-    Gamepad_Debounce_Update(6, report[0] & 0x02); // B (bit1)
-    Gamepad_Debounce_Update(5, report[0] & 0x04); // X (bit2)
-    Gamepad_Debounce_Update(4, report[0] & 0x08); // Y (bit3)
-    Gamepad_Debounce_Update(3, report[0] & 0x10); // L1 (bit4)
-    Gamepad_Debounce_Update(2, report[0] & 0x20); // R1 (bit5)
-    Gamepad_Debounce_Update(1, report[0] & 0x40); // L2 (bit6)
-    Gamepad_Debounce_Update(0, report[0] & 0x80); // R2 (bit7)
+    /* 全 ビット を 最初 に クリア (または 前回 の 状態 を コピー するか は 設計 次第。 ここでは クリア) */
+    memset(Gamepad_SPI_Data[write_idx], 0, 3);
 
-    /* --- Byte 1: Controls (bit_idx 15-8) --- v1.9 Mapping: Start Select L3 R3 Up Right Down Left */
-    Gamepad_Debounce_Update(15, report[1] & 0x02); // Start (bit1)
-    Gamepad_Debounce_Update(14, report[1] & 0x01); // Select (bit0)
-    Gamepad_Debounce_Update(13, report[1] & 0x04); // L3 (bit2)
-    Gamepad_Debounce_Update(12, report[1] & 0x08); // R3 (bit3)
+    /* --- バイト 0: ボタン --- */
+    if (report[0] & 0x01) Gamepad_SPI_Data[write_idx][0] |= 0x80; // A
+    if (report[0] & 0x02) Gamepad_SPI_Data[write_idx][0] |= 0x40; // B
+    if (report[0] & 0x04) Gamepad_SPI_Data[write_idx][0] |= 0x20; // X
+    if (report[0] & 0x08) Gamepad_SPI_Data[write_idx][0] |= 0x10; // Y
+    if (report[0] & 0x10) Gamepad_SPI_Data[write_idx][0] |= 0x08; // L1
+    if (report[0] & 0x20) Gamepad_SPI_Data[write_idx][0] |= 0x04; // R1
+    if (report[0] & 0x40) Gamepad_SPI_Data[write_idx][0] |= 0x02; // L2
+    if (report[0] & 0x80) Gamepad_SPI_Data[write_idx][0] |= 0x01; // R2
 
-    // D-pad: Bit order changed to Up | Right | Down | Left
+    /* --- バイト 1: コントロール --- */
+    if (report[1] & 0x02) Gamepad_SPI_Data[write_idx][1] |= 0x80; // Start
+    if (report[1] & 0x01) Gamepad_SPI_Data[write_idx][1] |= 0x40; // Select
+    if (report[1] & 0x04) Gamepad_SPI_Data[write_idx][1] |= 0x20; // L3
+    if (report[1] & 0x08) Gamepad_SPI_Data[write_idx][1] |= 0x10; // R3
+
     uint8_t dpad = report[2] & 0x0F;
-    Gamepad_Debounce_Update(11, (dpad == 0x00)); // Up
-    Gamepad_Debounce_Update(10, (dpad == 0x02)); // Right
-    Gamepad_Debounce_Update(9,  (dpad == 0x04)); // Down
-    Gamepad_Debounce_Update(8,  (dpad == 0x06)); // Left
+    if (dpad == 0x00) Gamepad_SPI_Data[write_idx][1] |= 0x08; // Up
+    if (dpad == 0x02) Gamepad_SPI_Data[write_idx][1] |= 0x04; // Right
+    if (dpad == 0x04) Gamepad_SPI_Data[write_idx][1] |= 0x02; // Down
+    if (dpad == 0x06) Gamepad_SPI_Data[write_idx][1] |= 0x01; // Left
 
-    /* --- Byte 2: Analogs Thresholding (bit_idx 23-16) --- Order: L-U | L-R | L-D | L-L | R-U | R-R | R-D | R-L */
-    // Left Stick (X=report[3], Y=report[4])
-    Gamepad_Debounce_Update(23, report[4] < 0x40); // L-Up
-    Gamepad_Debounce_Update(22, report[3] > 0xC0); // L-Right
-    Gamepad_Debounce_Update(21, report[4] > 0xC0); // L-Down
-    Gamepad_Debounce_Update(20, report[3] < 0x40); // L-Left
+    /* --- バイト 2: アナログ スレッショルド処理 --- */
+    if (report[4] < 0x40) Gamepad_SPI_Data[write_idx][2] |= 0x80; // L-Up
+    if (report[3] > 0xC0) Gamepad_SPI_Data[write_idx][2] |= 0x40; // L-Right
+    if (report[4] > 0xC0) Gamepad_SPI_Data[write_idx][2] |= 0x20; // L-Down
+    if (report[3] < 0x40) Gamepad_SPI_Data[write_idx][2] |= 0x10; // L-Left
 
-    // Right Stick (X=report[5], Y=report[6])
-    Gamepad_Debounce_Update(19, report[6] < 0x40); // R-Up
-    Gamepad_Debounce_Update(18, report[5] > 0xC0); // R-Right
-    Gamepad_Debounce_Update(17, report[6] > 0xC0); // R-Down
-    Gamepad_Debounce_Update(16, report[5] < 0x40); // R-Left
+    if (report[6] < 0x40) Gamepad_SPI_Data[write_idx][2] |= 0x08; // R-Up
+    if (report[5] > 0xC0) Gamepad_SPI_Data[write_idx][2] |= 0x04; // R-Right
+    if (report[6] > 0xC0) Gamepad_SPI_Data[write_idx][2] |= 0x02; // R-Down
+    if (report[5] < 0x40) Gamepad_SPI_Data[write_idx][2] |= 0x01; // R-Left
 
-    /* Synchronize with SPI Slave */
-    SPI1_Update_Data(Gamepad_SPI_Final);
+    /* 生 レポート も 保存 */
+    uint16_t copy_len = (len > 64) ? 64 : len;
+    memcpy(Gamepad_Raw_Report[write_idx], report, copy_len);
+    Gamepad_Raw_Report_Len[write_idx] = (uint8_t)copy_len;
+
+    /* ★ ここで インデックス を 切り替える (アトミック 操作) ★ */
+    Gamepad_Stable_Idx = write_idx;
+
+    /* SPI スレーブ バッファ 自体 の 更新 (以前 の 関数 を 使用 する 場合) */
+    SPI1_Update_Data(Gamepad_SPI_Data[Gamepad_Stable_Idx]);
 }
 
 /*******************************************************************************
@@ -344,7 +319,7 @@ void USBH_Process(void)
     {
         if (s == ROOT_DEV_CONNECTED)
         {
-            printf("Device Attached\r\n");
+            printf("デバイス が 接続 されました\r\n");
             uint8_t enum_res = USBH_EnumRootDevice();
             if (enum_res == ERR_SUCCESS)
             {
@@ -352,31 +327,32 @@ void USBH_Process(void)
                 {
                     GAMEPAD_AnalyzeConfigDesc(0, RootHubDev.bEp0MaxPks);
                     Gamepad_Status = GAMEPAD_ENUMERATED;
-                    printf("Gamepad OK (EP0=%d, Intf=%d)\r\n",
+                    printf("ゲームパッド OK (EP0=%d, インターフェース=%d)\r\n",
                            RootHubDev.bEp0MaxPks, HostCtl[0].InterfaceNum);
                 }
                 else
                 {
-                    printf("Not HID: type=%d\r\n", RootHubDev.bType);
+                    printf("HID ではありません: タイプ=%d\r\n", RootHubDev.bType);
                 }
             }
             else
             {
-                printf("Enum Fail: %02x\r\n", enum_res);
+                printf("エニュメレーション 失敗: %02x\r\n", enum_res);
             }
         }
         else if (s == ROOT_DEV_DISCONNECT)
         {
-            printf("Device Detached\r\n");
+            printf("デバイス が 切断 されました\r\n");
             Gamepad_Status = GAMEPAD_DISCONNECT;
             memset(&HostCtl, 0, sizeof(HostCtl));
-            memset(Gamepad_SPI_Final, 0, 3);
-            memset(Button_Release_Timer, 0, sizeof(Button_Release_Timer));
-            SPI1_Update_Data(Gamepad_SPI_Final);
+            memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
+            memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
+            memset(Gamepad_Raw_Report_Len, 0, sizeof(Gamepad_Raw_Report_Len));
+            SPI1_Update_Data(Gamepad_SPI_Data[Gamepad_Stable_Idx]);
         }
         else if (s == ROOT_DEV_FAILED)
         {
-            /* Reset to DISCONNECT so the state machine can re-detect */
+            /* DISCONNECT に リセット し、 ステートマシン が再検出できるようにします */
             s = ROOT_DEV_DISCONNECT;
         }
         last_status = s;
@@ -395,13 +371,13 @@ void USBH_Process(void)
                     s = USBFSH_GetEndpData(HostCtl[0].Interface[intf].InEndpAddr[in_num], \
                                            &HostCtl[0].Interface[intf].InEndpTog[in_num], Gamepad_Report_Buf, &len);
                     
-                    /* --- Register-Based PA1 Update with 100ms Stability Delay --- */
+                    /* --- 100ms 安定 ディレイ を伴う レジスタ ベース の PA1 更新 --- */
                     if (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH)
                     {
                         uint8_t res = USBFSH->INT_ST & 0x0F;
                         if (res != 0x00)
                         {
-                            PA1_Last_Success_Time = Current_System_Time; /* Response OK: Record success time */
+                            PA1_Last_Success_Time = Current_System_Time; /* 応答 OK: 成功時間を記録 */
                         }
                     }
 
@@ -411,7 +387,7 @@ void USBH_Process(void)
                         Gamepad_Raw_Len = (uint8_t)len;
                         Gamepad_Data_Map(Gamepad_Report_Buf, len);
 
-                        /* Optional: Log on report change only (minimal logging) */
+                        /* オプション: レポート 変更 時のみ ログ 出力 (最小限の ログ) */
                         if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
                         {
                             memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
@@ -422,33 +398,35 @@ void USBH_Process(void)
         }
     }
 
-    /* --- Constant Physical Disconnect Check --- */
+    /* --- 常時 物理的 切断 チェック --- */
     if (!(USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH))
     {
-        /* Physically disconnected (R8_MIS_ST bit 0 == 0) */
+        /* 物理的 に 切断 (R8_MIS_ST ビット 0 == 0) */
         PA1_Last_Success_Time = Current_System_Time - 1000;
         Gamepad_Comm_Ready = 0;
-        memset(Gamepad_SPI_Final, 0, sizeof(Gamepad_SPI_Final));
-        memset(Button_Release_Timer, 0, sizeof(Button_Release_Timer));
+        memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
+        memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
+        memset(Gamepad_Raw_Report_Len, 0, sizeof(Gamepad_Raw_Report_Len));
         GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
         Gamepad_Status = GAMEPAD_DISCONNECT;
         Gamepad_Data_Last_Time = 0;
     }
 
-    /* Update Gamepad_Comm_Ready based on 100ms timeout of valid responses */
+    /* 有効な 応答 の 100ms タイムアウト に基づいて Gamepad_Comm_Ready を更新 */
     if (Gamepad_Status == GAMEPAD_ENUMERATED) {
         Gamepad_Comm_Ready = ( (Current_System_Time - PA1_Last_Success_Time) < 100 );
     } else {
         Gamepad_Comm_Ready = 0;
     }
 
-    /* PA1 Ready LED: Based on communication ready status */
+    /* PA1 レディ LED: 通信 レディ ステータス に基づく */
     GPIO_WriteBit(GPIOA, GPIO_Pin_1, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
 
-    /* PA2 Status LED: Update constantly if data is fresh (within 100ms) AND any bit is set */
+    /* PA2 ステータス LED: データ が フレッシュ (100ms 以内) かつ いずれかの ビット がセットされている場合に常時更新 */
     uint8_t data_is_fresh = ( (Current_System_Time - Gamepad_Data_Last_Time) < 100 );
-    if (data_is_fresh && (Gamepad_SPI_Final[0] || Gamepad_SPI_Final[1] || Gamepad_SPI_Final[2])) {
+    uint8_t *spi_data = Gamepad_SPI_Data[Gamepad_Stable_Idx];
+    if (data_is_fresh && (spi_data[0] || spi_data[1] || spi_data[2])) {
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_SET);
     } else {
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
