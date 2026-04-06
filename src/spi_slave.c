@@ -50,7 +50,7 @@ void SPI1_Slave_Init(void)
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource4);
     EXTI_InitStructure.EXTI_Line = EXTI_Line4;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling; // 立ち下がり時の低負荷化のため両エッジ
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init(&EXTI_InitStructure);
 
@@ -122,19 +122,30 @@ void EXTI7_0_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_Line4) != RESET)
     {
-        /* 通信状態をリセット */
-        spi_rx_cnt = 0;
-        spi_curr_cmd = 0;
+        /* PA4 (CS) の状態を確認 */
+        if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_4) == Bit_RESET)
+        {
+            /* --- 通信開始 (FALLING) : 負荷を極小にする --- */
+            spi_rx_cnt = 0;
+            spi_curr_cmd = 0;
+        }
+        else
+        {
+            /* --- 通信終了 (RISING) : アイドル中に次回の準備を済ませる --- */
+            /* CS立ち上がり時にアクティブなDMA転送を即座に停止 */
+            DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
+            SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
 
-        /* CS立ち下がり時にアクティブなDMA転送を即座に停止 */
-        DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
-        SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
+            /* ハードウェア・ビットカウンタの物理的クリア (SPEトグル) 
+             * 余裕のあるアイドル中に行うことで、次回の通信は「準備完了」からスタート */
+            SPI1->CTLR1 &= ~SPI_CTLR1_SPE; 
+            SPI1->CTLR1 |= SPI_CTLR1_SPE;
 
-        /* ハードウェア遅延や偽のバイトを追加せずに残余データをクリア（FIFOフラッシュ） */
-        while(SPI1->STATR & SPI_STATR_RXNE) (void)SPI1->DATAR;
-        (void)SPI1->STATR;
+            /* FIFOフラッシュ */
+            while(SPI1->STATR & SPI_STATR_RXNE) (void)SPI1->DATAR;
+            (void)SPI1->STATR;
+        }
 
-        /* 保留中のフラグをクリア */
         EXTI_ClearITPendingBit(EXTI_Line4);
     }
 }
