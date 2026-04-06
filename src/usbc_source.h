@@ -20,8 +20,8 @@ extern "C" {
 #define LOADSW_GPIO_CLK       RCC_APB2Periph_GPIOA
 
 /* Debounce: consecutive stable readings needed (x detection period) */
-#define CC_DEBOUNCE_ATTACH    5               /* ~20ms at 4ms period */
-#define CC_DEBOUNCE_DETACH    8               /* ~32ms at 4ms period */
+#define CC_DEBOUNCE_ATTACH    12               /* 10ms x 12 = 120ms (接続規格: 100〜200msを満たす) */
+#define CC_DEBOUNCE_DETACH    2               /* 10ms x 2  =  20ms (切断規格: 10〜20ms程度を満たす) */
 
 /* ---------- State ---------- */
 typedef enum {

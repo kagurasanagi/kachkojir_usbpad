@@ -36,8 +36,8 @@ int main(void) {
     /* USB Host gamepad polling (runs every iteration) */
     USBH_Process();
 
-    /* CC detection throttled to ~100ms intervals using TIM3's 1ms tick */
-    if ((Current_System_Time - last_cc_check) >= 100) {
+    /* CC detection throttled to ~10ms intervals using TIM3's 1ms tick */
+    if ((Current_System_Time - last_cc_check) >= 10) {
       last_cc_check = Current_System_Time;
       USBC_Source_Detect();
     }
