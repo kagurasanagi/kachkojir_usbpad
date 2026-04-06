@@ -1,9 +1,9 @@
 /********************************** (C) COPYRIGHT *******************************
- * File Name          : usb_host_gamepad.h
- * Author             : Antigravity
- * Version            : V1.0.0
- * Date               : 2026/04/04
- * Description        : USB Host Gamepad handling header.
+ * ファイル名          : usb_host_gamepad.h
+ * 著者                : Antigravity
+ * バージョン          : V1.0.0
+ * 日付                : 2026/04/04
+ * 説明                : USB ホスト ゲームパッド 処理 ヘッダー。
  *******************************************************************************/
 
 #ifndef __USB_HOST_GAMEPAD_H
@@ -16,16 +16,20 @@ extern "C" {
 #include "usb_host_config.h"
 #include <stdint.h>
 
-/* USB Gamepad Status */
+/* USB ゲームパッド ステータス */
 #define GAMEPAD_DISCONNECT          0
 #define GAMEPAD_CONNECTED           1
 #define GAMEPAD_ENUMERATED          2
 
-/* External Variables */
+/* 外部共有変数 */
 extern uint8_t Gamepad_Status;
 extern uint32_t Current_System_Time;
+extern volatile uint8_t Gamepad_Stable_Idx;
+extern uint8_t Gamepad_SPI_Data[2][3];
+extern uint8_t Gamepad_Raw_Report[2][64];
+extern uint8_t Gamepad_Raw_Report_Len[2];
 
-/* Public Functions */
+/* パブリック関数 */
 void USB_Host_Init_Sequence(void);
 void USBH_MainInterrupt(void);
 void USBH_Process(void);

@@ -2,25 +2,25 @@
 #include "usb_host_gamepad.h"
 #include <string.h>
 
-/* Global communication state */
+/* グローバル通信状態 */
 volatile uint8_t spi_rx_cnt = 0;
 volatile uint8_t spi_curr_cmd = 0;
-uint8_t spi_tx_tmp[SPI_BUFF_SIZE]; // Temporary response buffer
+uint8_t spi_tx_tmp[SPI_BUFF_SIZE]; // 一時的な応答バッファ
 
-/* Optimization: DMA-based response for 1MHz jitter-free reliability */
-static uint8_t  spi_tx_snapshot[64]; // Snapshot buffer to prevent race conditions
+/* 最適化: 1MHzでのジッターフリーな信頼性のためのDMAベースの応答 */
+static uint8_t  spi_tx_snapshot[64]; // レースコンディションを防ぐためのスナップショットバッファ
 static uint8_t  spi_res_null = 0;
 static uint8_t *spi_tx_ptr = &spi_res_null;
 static uint8_t  spi_tx_len = 0;
 
-/* Static response buffers for constant/constructed values */
+/* 定数値または構築された値用の静的応答バッファ */
 static uint8_t spi_res_status;
 static uint8_t spi_res_version[2] = {0x01, 0x09}; // v1.9
 static uint8_t spi_res_id[4];
 
 /*********************************************************************
  * @fn      SPI1_Slave_Init
- * @brief   Initialize SPI1 as Slave with EXTI for CS syncing.
+ * @brief   CS同期用のEXTIを備えたスレーブとしてSPI1を初期化します。
  */
 void SPI1_Slave_Init(void)
 {
@@ -29,10 +29,10 @@ void SPI1_Slave_Init(void)
     NVIC_InitTypeDef NVIC_InitStructure = {0};
     EXTI_InitTypeDef EXTI_InitStructure = {0};
 
-    /* Enable Clocks: PA, SPI1, AFIO */
+    /* クロック有効化: PA, SPI1, AFIO */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_SPI1 | RCC_APB2Periph_AFIO, ENABLE);
 
-    /* SPI1 GPIOs: PA4:NSS, PA5:SCK, PA6:MISO, PA7:MOSI */
+    /* SPI1 GPIO設定: PA4:NSS, PA5:SCK, PA6:MISO, PA7:MOSI */
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
@@ -42,9 +42,9 @@ void SPI1_Slave_Init(void)
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    /* PA4 as EXTI for CS Sync (Falling edge) */
+    /* CS同期用のEXTIとしてPA4を設定（立ち下がりエッジ） */
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU; // Internal Pull-up
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU; // 内部プルアップ
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource4);
@@ -54,42 +54,42 @@ void SPI1_Slave_Init(void)
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init(&EXTI_InitStructure);
 
-    /* SPI1 Config */
+    /* SPI1 設定 */
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
     SPI_InitStructure.SPI_Mode = SPI_Mode_Slave;
     SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-    SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;   // Mode 0 as per readme
-    SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge; // Mode 0 as per readme
-    SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;    // Use EXTI for custom state handling
+    SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;   // READMEに従いモード0
+    SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge; // READMEに従いモード0
+    SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;    // カスタム状態処理のためにEXTIを使用
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
     SPI_InitStructure.SPI_CRCPolynomial = 7;
     SPI_Init(SPI1, &SPI_InitStructure);
 
-    /* Enable RX Interrupt for Command parsing */
+    /* コマンド解析用の受信割り込みを有効化 */
     SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, ENABLE);
 
-    /* NVIC Config for SPI and EXTI */
+    /* SPIおよびEXTI用のNVIC設定 */
     NVIC_InitStructure.NVIC_IRQChannel = SPI1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0; // Highest
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;        // Highest
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0; // 最高
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;        // 最高
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 
     NVIC_InitStructure.NVIC_IRQChannel = EXTI7_0_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;        // High for CS Sync
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;        // CS同期用に高優先度
     NVIC_Init(&NVIC_InitStructure);
 
     SPI_Cmd(SPI1, ENABLE);
 
-    /* Initialize DMA for stable high-speed transmission */
+    /* 安定した高速送信のためのDMA初期化 */
     SPI1_DMA_Init();
 }
 
 /*********************************************************************
  * @fn      SPI1_DMA_Init
- * @brief   Initialize DMA1 for multi-byte responses if needed.
- *          (Currently we use Interrupt for logic, DMA can be added later for RAW data)
+ * @brief   必要に応じてマルチバイト応答用のDMA1を初期化します。
+ *          （現在はロジックに割り込みを使用しており、RAWデータ用に後でDMAを追加可能）
  */
 void SPI1_DMA_Init(void)
 {
@@ -97,12 +97,12 @@ void SPI1_DMA_Init(void)
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
-    /* DMA1 Channel 3 for SPI1 TX */
+    /* SPI1 TX用のDMA1 チャンネル3 */
     DMA_DeInit(DMA1_Channel3);
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&SPI1->DATAR;
     DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)spi_tx_snapshot;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
-    DMA_InitStructure.DMA_BufferSize = 0; // Set upon command
+    DMA_InitStructure.DMA_BufferSize = 0; // コマンド受信時に設定
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
     DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
@@ -115,33 +115,33 @@ void SPI1_DMA_Init(void)
 
 /*********************************************************************
  * @fn      EXTI7_0_IRQHandler
- * @brief   NSS (PA4) Falling Edge - Reset communication state.
+ * @brief   NSS (PA4) 立ち下がりエッジ - 通信状態をリセットします。
  */
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt));
 void EXTI7_0_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_Line4) != RESET)
     {
-        /* Reset communication state */
+        /* 通信状態をリセット */
         spi_rx_cnt = 0;
         spi_curr_cmd = 0;
 
-        /* Stop any active DMA transfer immediately on CS fall */
+        /* CS立ち下がり時にアクティブなDMA転送を即座に停止 */
         DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
         SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
 
-        /* Clear Residual Data (FIFO Flush) without adding hardware delay or fake bytes */
+        /* ハードウェア遅延や偽のバイトを追加せずに残余データをクリア（FIFOフラッシュ） */
         while(SPI1->STATR & SPI_STATR_RXNE) (void)SPI1->DATAR;
         (void)SPI1->STATR;
 
-        /* Clear any pending flags */
+        /* 保留中のフラグをクリア */
         EXTI_ClearITPendingBit(EXTI_Line4);
     }
 }
 
 /*********************************************************************
  * @fn      SPI1_IRQHandler
- * @brief   Handle SPI interrupts for Command Parsing and Response.
+ * @brief   コマンド解析と応答のためのSPI割り込みを処理します。
  */
 void SPI1_IRQHandler(void) __attribute__((interrupt));
 void SPI1_IRQHandler(void)
@@ -152,18 +152,29 @@ void SPI1_IRQHandler(void)
 
         if (spi_rx_cnt == 0)
         {
-            /* 1st Byte = Command ID */
+            /* 1バイト目 = コマンドID */
             spi_curr_cmd = rx_data;
             spi_rx_cnt = 1;
 
-            /* Pre-resolve response pointer and length */
+            /* 応答ポインタと長さを事前に解決 (ダブルバッファリング対応) */
+            uint8_t stable_idx = Gamepad_Stable_Idx;
+
             switch (spi_curr_cmd)
             {
-                case CMD_GET_PAD_INPUT:   // 0x01
-                    spi_tx_ptr = Gamepad_SPI_Final;
+                case CMD_GET_PAD_INPUT:   // 0x01 (解析済み 3バイト)
+                    spi_tx_ptr = Gamepad_SPI_Data[stable_idx];
                     spi_tx_len = 3;
                     break;
 
+                case CMD_GET_PAD_RAW:     // 0x02 (生レポート)
+                    spi_tx_ptr = Gamepad_Raw_Report[stable_idx];
+                    spi_tx_len = Gamepad_Raw_Report_Len[stable_idx];
+                    break;
+
+                case CMD_GET_PAD_RAW_LEN: // 0x03 (生レポート長)
+                    spi_tx_ptr = &Gamepad_Raw_Report_Len[stable_idx];
+                    spi_tx_len = 1;
+                    break;
 
                 case CMD_GET_SYS_STATUS:  // 0x10
                     spi_res_status = (Gamepad_Status >= GAMEPAD_ENUMERATED) ? 1 : 0;
@@ -193,14 +204,14 @@ void SPI1_IRQHandler(void)
 
             if (spi_tx_len > 0)
             {
-                /* Snapshot data to prevent race conditions */
+                /* レースコンディションを防ぐためのデータのスナップショット */
                 memcpy(spi_tx_snapshot, spi_tx_ptr, (spi_tx_len > 64) ? 64 : spi_tx_len);
 
-                /* PURE DMA: All response bytes handled by DMA for jitter-free consistency */
-                DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN; // Ensure disabled
+                /* 純粋なDMA: ジッターのない一貫性のために、すべての応答バイトはDMAによって処理されます */
+                DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN; // 無効化を確認
                 DMA1_Channel3->MADDR = (uint32_t)spi_tx_snapshot;
                 DMA1_Channel3->CNTR = spi_tx_len;
-                DMA1_Channel3->CFGR |= DMA_CFGR1_EN;  // Enable
+                DMA1_Channel3->CFGR |= DMA_CFGR1_EN;  // 有効化
 
                 SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
             }
@@ -211,8 +222,8 @@ void SPI1_IRQHandler(void)
         }
         else
         {
-            /* 2nd byte and onwards: DMA is handling the TX.
-             * We increment the counter just for internal state/debug. */
+            /* 2バイト目以降: TXはDMAが処理しています。
+             * 内部状態/デバッグのためにカウンターのみ加算します。 */
             spi_rx_cnt++;
         }
     }
@@ -220,5 +231,5 @@ void SPI1_IRQHandler(void)
 
 void SPI1_Update_Data(uint8_t *data)
 {
-    /* Handled by volatile Gamepad_SPI_Final in ISR */
+    /* ISR内の volatile Gamepad_SPI_Final によって処理されます */
 }
