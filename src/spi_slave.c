@@ -204,14 +204,11 @@ void SPI1_IRQHandler(void)
 
             if (spi_tx_len > 0)
             {
-                /* レースコンディションを防ぐためのデータのスナップショット */
-                memcpy(spi_tx_snapshot, spi_tx_ptr, (spi_tx_len > 64) ? 64 : spi_tx_len);
-
-                /* 純粋なDMA: ジッターのない一貫性のために、すべての応答バイトはDMAによって処理されます */
-                DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN; // 無効化を確認
-                DMA1_Channel3->MADDR = (uint32_t)spi_tx_snapshot;
+                /* 成功モデル: memcpy を削除し、DMA をバッファに直結 (Success Point #2) */
+                DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
+                DMA1_Channel3->MADDR = (uint32_t)spi_tx_ptr;
                 DMA1_Channel3->CNTR = spi_tx_len;
-                DMA1_Channel3->CFGR |= DMA_CFGR1_EN;  // 有効化
+                DMA1_Channel3->CFGR |= DMA_CFGR1_EN;
 
                 SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
             }
