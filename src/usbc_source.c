@@ -23,6 +23,7 @@
 static USBC_SRC_State_t s_state = USBC_SRC_DISCONNECTED;
 static uint8_t  s_active_cc    = 0;    /* 0: なし, 1: CC1, 2: CC2 */
 static uint8_t  s_debounce_cnt = 0;
+static uint8_t  s_oc_latched   = 0;    /* 1 = 過電流検出済み (再起動まで維持) */
 
 /* ---------- プライベート ヘルパー ---------- */
 
@@ -31,6 +32,7 @@ static uint8_t  s_debounce_cnt = 0;
  */
 static void LoadSwitch_On(void)
 {
+    if (s_oc_latched) return; /* 過電流状態では ON にしない */
     GPIO_WriteBit(LOADSW_GPIO_PORT, LOADSW_GPIO_PIN, Bit_SET);
 }
 
@@ -135,6 +137,20 @@ void USBC_Source_Init(void)
     GPIO_Init(LOADSW_GPIO_PORT, &GPIO_InitStructure);
     LoadSwitch_Off();
 
+    /* 過電流検知 GPIO (PA0) - 外部プルアップを使用するため内部プルは使用しない */
+    RCC_APB2PeriphClockCmd(OC_GPIO_CLK, ENABLE);
+    GPIO_InitStructure.GPIO_Pin   = OC_GPIO_PIN;
+    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN_FLOATING;
+    GPIO_Init(OC_GPIO_PORT, &GPIO_InitStructure);
+
+    /* 異常表示 LED (PC3) - プッシュプル出力 */
+    RCC_APB2PeriphClockCmd(FAULT_LED_GPIO_CLK, ENABLE);
+    GPIO_InitStructure.GPIO_Pin   = FAULT_LED_GPIO_PIN;
+    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(FAULT_LED_GPIO_PORT, &GPIO_InitStructure);
+    GPIO_WriteBit(FAULT_LED_GPIO_PORT, FAULT_LED_GPIO_PIN, Bit_RESET);
+
     /* --- CC1/CC2 GPIO (PC14, PC15) を フローティング入力 として設定 --- */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_14 | GPIO_Pin_15;
@@ -165,6 +181,7 @@ void USBC_Source_Init(void)
     s_state        = USBC_SRC_DISCONNECTED;
     s_active_cc    = 0;
     s_debounce_cnt = 0;
+    s_oc_latched   = 0;
 
     /* デバッグ: レジスタ 値を確認 */
     printf("USBC Source Init OK (Rp=330uA on CC1/CC2)\r\n");
@@ -253,4 +270,22 @@ USBC_SRC_State_t USBC_Source_GetState(void)
 uint8_t USBC_Source_GetActiveCC(void)
 {
     return s_active_cc;
+}
+
+void USBC_Source_HandleOC(void)
+{
+    /* 最優先で遮断 */
+    LoadSwitch_Off();
+    s_oc_latched = 1;
+    
+    /* 異常 LED 点灯 */
+    GPIO_WriteBit(FAULT_LED_GPIO_PORT, FAULT_LED_GPIO_PIN, Bit_SET);
+    
+    /* ログ出力 (割り込み内なので簡潔に) */
+    printf("\r\n!!! OVER-CURRENT DETECTED (PA0) - SYSTEM LATCHED OFF !!!\r\n");
+}
+
+uint8_t USBC_Source_IsFault(void)
+{
+    return s_oc_latched;
 }

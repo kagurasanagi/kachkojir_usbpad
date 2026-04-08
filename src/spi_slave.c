@@ -1,5 +1,6 @@
 #include "spi_slave.h"
 #include "usb_host_gamepad.h"
+#include "usbc_source.h"
 #include <string.h>
 
 /* グローバル通信状態 */
@@ -51,6 +52,14 @@ void SPI1_Slave_Init(void)
     EXTI_InitStructure.EXTI_Line = EXTI_Line4;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
     EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling; // 立ち下がり時の低負荷化のため両エッジ
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
+
+    /* /OC 用の EXTI として設定（立ち下がりエッジ） */
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStructure.EXTI_LineCmd = ENABLE;
     EXTI_Init(&EXTI_InitStructure);
 
@@ -147,6 +156,17 @@ void EXTI7_0_IRQHandler(void)
         }
 
         EXTI_ClearITPendingBit(EXTI_Line4);
+    }
+
+    /* PA0 (/OC) のチェック */
+    if (EXTI_GetITStatus(EXTI_Line0) != RESET)
+    {
+        /* 外部ロードスイッチからの /OC 信号を検知 */
+        if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0) == Bit_RESET)
+        {
+            USBC_Source_HandleOC();
+        }
+        EXTI_ClearITPendingBit(EXTI_Line0);
     }
 }
 
