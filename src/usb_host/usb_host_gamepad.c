@@ -255,45 +255,7 @@ void Gamepad_Data_Map(uint8_t *report, uint16_t len) {
    * 次第。 ここでは クリア) */
   memset(Gamepad_SPI_Data[write_idx], 0, 3);
 
-  /* --- バイト 0: ボタン --- */
-  //   if (report[0] & 0x01)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x80; // A
-  //   if (report[0] & 0x02)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x40; // B
-  //   if (report[0] & 0x04)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x20; // X
-  //   if (report[0] & 0x08)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x10; // Y
-  //   if (report[0] & 0x10)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x08; // L1
-  //   if (report[0] & 0x20)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x04; // R1
-  //   if (report[0] & 0x40)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x02; // L2
-  //   if (report[0] & 0x80)
-  //     Gamepad_SPI_Data[write_idx][0] |= 0x01; // R2
   Gamepad_SPI_Data[write_idx][0] = report[0];
-
-  /* --- バイト 1: コントロール --- */
-  //   if (report[1] & 0x02)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x80; // Start
-  //   if (report[1] & 0x01)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x40; // Select
-  //   if (report[1] & 0x04)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x20; // L3
-  //   if (report[1] & 0x08)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x10; // R3
-
-  //   uint8_t dpad = report[2] & 0x0F;
-  //   if (dpad == 0x00)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x08; // Up
-  //   if (dpad == 0x02)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x04; // Right
-  //   if (dpad == 0x04)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x02; // Down
-  //   if (dpad == 0x06)
-  //     Gamepad_SPI_Data[write_idx][1] |= 0x01; // Left
-
   Gamepad_SPI_Data[write_idx][1] = (report[1] & 0x0F) << 4 | report[2] & 0x0F;
 
   /* --- バイト 2: アナログ スレッショルド処理 --- */

@@ -14,7 +14,7 @@ extern "C" {
 #include "ch32x035_usbpd.h"
 
 /* ---------- コンフィギュレーション ---------- */
-/* ロードスイッチ 制御 ピン (High = ON, Low = OFF) */
+/* ロードスイッチ 制御 ピン (Low = ON, High = OFF) - /EN (Active LOW) */
 #define LOADSW_GPIO_PORT      GPIOA
 #define LOADSW_GPIO_PIN       GPIO_Pin_1      /* PA1 (Pin 6), LED としても機能 */
 #define LOADSW_GPIO_CLK       RCC_APB2Periph_GPIOA
