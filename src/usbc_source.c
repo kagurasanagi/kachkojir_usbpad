@@ -6,7 +6,7 @@
  *   MCU    : CH32X035G8U6 (QFN28), VDD = 3.3V
  *   CC1    : PC14 (Pin 28) - 内部 USBPD PHY
  *   CC2    : PC15 (Pin 1)  - 内部 USBPD PHY
- *   LoadSW : PA0  (Pin 5)  - High = ON, Low = OFF
+ *   LoadSW : PA1  (Pin 6)  - High = ON, Low = OFF
  *
  * 動作:
  *   ソースモード では CC1 と CC2 の両方で Rp プルアップ (330uA) を有効にします。

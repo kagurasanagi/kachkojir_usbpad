@@ -20,10 +20,10 @@ RP2350にUSBゲームパッドを直結した場合、SDカードへのアクセ
 | 2 | VDD | P | VDD | - |
 | 3 | PC0 | I/O/A | PC0 | A10 |
 | 4 | PC3 | I/O/A | PC3 | C1N0/C2N1/C3N1/A13 |
-| 5 | PA0 | I/O/A | PA0 | T2C1/CTS2/C1P1/A0 |
-| 6 | PA1 | I/O/A | PA1 | RTS2/T2C2/C1O/O1N2/O2N2/A1 |
-| 7 | PA2 | I/O/A | PA2 | TX2/T2C3/O2O1/C3N0/A2 |
-| 8 | PA3 | I/O/A | PA3 | RX2/T2C4/O1O0/A3(3) |
+| 5 | PA0 | I/O/A | PA0 | 未使用 (将来の機能拡張用) |
+| 6 | PA1 | I/O/A | PA1 | LoadSwitch EN (給電制御) |
+| 7 | PA2 | I/O/A | PA2 | LED (PadEnable) |
+| 8 | PA3 | I/O/A | PA3 | LED (Status) |
 | 9 | PA4 | I/O/A | PA4 | CS/CK2/O2O0/A4 |
 | 10 | PA5 | I/O/A | PA5 | SCK/O2N0/A5 |
 | 11 | PA6 | I/O/A | PA6 | MISO/T3C1/O1N0/A6 |
@@ -58,9 +58,10 @@ RP2350にUSBゲームパッドを直結した場合、SDカードへのアクセ
 | **電源 GND** | 0 | **GND** | 中心パッド (Exposed Pad) |
 | **USB-C CC2** | 1 | **PC15** | USB-C 接続検知 (CC2) |
 | **電源 VDD** | 2 | **VDD** | 3.3V 入力 |
-| **LED (Power)** | 5 | **PA0** | LoadSwitch EN (給電制御) と共用。Highで給電開始＆点灯。 |
-| **LED (PadEnable)** | 6 | **PA1** | USBパッド通信確立時に点灯。100msの連続無応答で消灯（ヒステリシス付）。物理抜去時は即消灯。 |
-| **LED (Status)** | 7 | **PA2** | USBパッドでいずれかの入力がある状態（中立以外）かつ、データ受信から100ms以内に点灯。切断時または無通信時に消灯。 |
+| **電源制御** | 6 | **PA1** | LoadSwitch EN (給電制御)。Highで給電開始＆点灯。 |
+| **LED (PadEnable)** | 7 | **PA2** | USBパッド通信確立時に点灯。100msの連続無応答で消灯。物理抜去時は即消灯。 |
+| **LED (Status)** | 8 | **PA3** | USBパッドで入力がある状態かつ、データ受信から100ms以内に点灯。 |
+| **(未使用)** | 5 | **PA0** | フリー (将来の過電流検知などへの拡張用) |
 | **SPI CS** | 9 | **PA4 (CS)** | RP2350 CS (要・手動GPIO制御) |
 | **SPI SCK** | 10 | **PA5 (SCK)** | RP2350 SCK |
 | **SPI MISO** | 11 | **PA6 (MISO)** | RP2350 MISO (データ出力) |

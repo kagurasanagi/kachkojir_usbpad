@@ -20,7 +20,7 @@ uint8_t Gamepad_Report_Buf[64];
 uint8_t Gamepad_Prev_Report_Buf[64];
 uint8_t Gamepad_SPI_Prev[3] = {0}; // 24ビット バイナリ 変更 検出 用
 static uint8_t Gamepad_Comm_Ready = 0; // 1 = HOME ボタン後の 通信 応答 中
-static uint32_t PA1_Last_Success_Time = 0; // 有効な PID 応答 があった最後の システムタイム
+static uint32_t PA2_Last_Success_Time = 0; // 有効な PID 応答 があった最後の システムタイム
 static uint32_t Gamepad_Data_Last_Time = 0; // 有効な データパケット (ERR_SUCCESS) が到着した最後の時間
 
 /* 共有 バッファ (ダブルバッファリング) */
@@ -49,16 +49,16 @@ void USB_Host_Init_Sequence(void)
     memset(&RootHubDev, 0, sizeof(RootHubDev));
     memset(HostCtl, 0, sizeof(HOST_CTL) * DEF_TOTAL_ROOT_HUB * DEF_ONE_USB_SUP_DEV_TOTAL);
 
-    /* LED 初期化: PA1 (PadEnable), PA2 (ステータス) 
-     * GPIOPA_CFGLR (0x40010800): PA1 ビット 7-4, PA2 ビット 11-8
+    /* LED 初期化: PA2 (PadEnable), PA3 (ステータス) 
+     * GPIOPA_CFGLR (0x40010800): PA2 ビット 11-8, PA3 ビット 15-12
      * モード: 11 (出力 50MHz), CNF: 00 (プッシュプル) -> 0x3
      */
     {
         RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-        GPIOA->CFGLR &= ~( (0x0F << 4) | (0x0F << 8) ); // PA1, PA2 ビット をクリア
-        GPIOA->CFGLR |= ( (0x03 << 4) | (0x03 << 8) );  // PA1, PA2 を 0x3 (PP 50M) に設定
-        GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
+        GPIOA->CFGLR &= ~( (0x0F << 8) | (0x0F << 12) ); // PA2, PA3 ビット をクリア
+        GPIOA->CFGLR |= ( (0x03 << 8) | (0x03 << 12) );  // PA2, PA3 を 0x3 (PP 50M) に設定
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
     }
 
     /* RP2350 通信 用の SPI スレーブ を初期化 */
@@ -377,7 +377,7 @@ void USBH_Process(void)
                         uint8_t res = USBFSH->INT_ST & 0x0F;
                         if (res != 0x00)
                         {
-                            PA1_Last_Success_Time = Current_System_Time; /* 応答 OK: 成功時間を記録 */
+                            PA2_Last_Success_Time = Current_System_Time; /* 応答 OK: 成功時間を記録 */
                         }
                     }
 
@@ -402,33 +402,33 @@ void USBH_Process(void)
     if (!(USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH))
     {
         /* 物理的 に 切断 (R8_MIS_ST ビット 0 == 0) */
-        PA1_Last_Success_Time = Current_System_Time - 1000;
+        PA2_Last_Success_Time = Current_System_Time - 1000;
         Gamepad_Comm_Ready = 0;
         memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
         memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
         memset(Gamepad_Raw_Report_Len, 0, sizeof(Gamepad_Raw_Report_Len));
-        GPIO_WriteBit(GPIOA, GPIO_Pin_1, Bit_RESET);
         GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
         Gamepad_Status = GAMEPAD_DISCONNECT;
         Gamepad_Data_Last_Time = 0;
     }
 
     /* 有効な 応答 の 100ms タイムアウト に基づいて Gamepad_Comm_Ready を更新 */
     if (Gamepad_Status == GAMEPAD_ENUMERATED) {
-        Gamepad_Comm_Ready = ( (Current_System_Time - PA1_Last_Success_Time) < 100 );
+        Gamepad_Comm_Ready = ( (Current_System_Time - PA2_Last_Success_Time) < 100 );
     } else {
         Gamepad_Comm_Ready = 0;
     }
 
-    /* PA1 レディ LED: 通信 レディ ステータス に基づく */
-    GPIO_WriteBit(GPIOA, GPIO_Pin_1, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
+    /* PA2 レディ LED: 通信 レディ ステータス に基づく */
+    GPIO_WriteBit(GPIOA, GPIO_Pin_2, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
 
-    /* PA2 ステータス LED: データ が フレッシュ (100ms 以内) かつ いずれかの ビット がセットされている場合に常時更新 */
+    /* PA3 ステータス LED: データ が フレッシュ (100ms 以内) かつ いずれかの ビット がセットされている場合に常時更新 */
     uint8_t data_is_fresh = ( (Current_System_Time - Gamepad_Data_Last_Time) < 100 );
     uint8_t *spi_data = Gamepad_SPI_Data[Gamepad_Stable_Idx];
     if (data_is_fresh && (spi_data[0] || spi_data[1] || spi_data[2])) {
-        GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_SET);
+        GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_SET);
     } else {
-        GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
+        GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
     }
 }

@@ -16,7 +16,7 @@ extern "C" {
 /* ---------- コンフィギュレーション ---------- */
 /* ロードスイッチ 制御 ピン (High = ON, Low = OFF) */
 #define LOADSW_GPIO_PORT      GPIOA
-#define LOADSW_GPIO_PIN       GPIO_Pin_0      /* PA0 (Pin 5), LED としても機能 */
+#define LOADSW_GPIO_PIN       GPIO_Pin_1      /* PA1 (Pin 6), LED としても機能 */
 #define LOADSW_GPIO_CLK       RCC_APB2Periph_GPIOA
 
 /* デバウンス: 連続した安定した読み取りが必要 (x 検出 周期) */
