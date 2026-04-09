@@ -42,65 +42,65 @@ static void LoadSwitch_Off(void) {
 }
 
 /*
- * 内部 コンパレータ を使用して CC ピン の 電圧 レベル を読み取ります。
+ * 内部コンパレータを使用してCCピンの電圧レベルを読み取ります。
  *
- * ソース は Rp (330uA プルアップ) を提示します。
- *   - オープン (デバイスなし): CC 電圧 ≈ VDD (≈ 3.3V) → すべての スレッショルド
+ * ソースはRp(330uAプルアップ)を提示します。
+ *   - オープン(デバイスなし):CC電圧≈VDD(≈3.3V)→すべてのスレッショルド
  * を上回る
- *   - Rd 接続 (シンク): CC 電圧 ≈ 330uA × 5.1kΩ ≈ 1.68V
- *     → 0.66V 以上, 0.95V 以上, 1.23V 以上, 2.2V 未満 (GPIO スレッショルド)
- *   - Ra 接続 (オーディオ/VCONN): CC 電圧 は非常に低い ≈ 330uA × 1kΩ ≈ 0.33V
- *     → 0.22V 以上, 0.45V 未満
+ *   - Rd接続(シンク):CC電圧≈330uA×5.1kΩ≈1.68V
+ *     →0.66V以上,0.95V以上,1.23V以上,2.2V未満(GPIOスレッショルド)
+ *   - Ra接続(オーディオ/VCONN):CC電圧は非常に低い≈330uA×1kΩ≈0.33V
+ *     →0.22V以上,0.45V未満
  *
- * 以下のチェックにより Rd を 検出 します:
- *   CC_CMP_66  (0.66V) → PA_CC_AI が HIGH であること (電圧 > 0.66V)
- *   GPIO INDR  (2.2V)  → LOW であること             (電圧 < 2.2V)
+ * 以下のチェックによりRdを検出します:
+ *   CC_CMP_66 (0.66V)→PA_CC_AIがHIGHであること(電圧>0.66V)
+ *   GPIO INDR(2.2V)→LOWであること(電圧<2.2V)
  *
- * 戻り値: 0 = オープン/デバイスなし, 1 = Rd 検出 (シンク), 2 = Ra 検出
+ * 戻り値: 0=オープン/デバイスなし,1=Rd検出(シンク),2=Ra検出
  */
 static uint8_t CC_Read_State(volatile uint16_t *port_cc_reg,
                              uint16_t gpio_pin) {
   uint8_t cmp_result = 0;
 
-  /* CC_CMP_22 (0.22V スレッショルド) でテスト */
+  /* CC_CMP_22(0.22Vスレッショルド)でテスト */
   *port_cc_reg &= ~(CC_CMP_Mask | PA_CC_AI);
   *port_cc_reg |= CC_CMP_22;
   Delay_Us(2);
   if (*port_cc_reg & PA_CC_AI) {
-    cmp_result |= bCC_CMP_22; /* 電圧 > 0.22V */
+    cmp_result |= bCC_CMP_22; /* 電圧>0.22V */
   }
 
-  /* CC_CMP_66 (0.66V スレッショルド) でテスト */
+  /* CC_CMP_66(0.66Vスレッショルド)でテスト */
   *port_cc_reg &= ~(CC_CMP_Mask | PA_CC_AI);
   *port_cc_reg |= CC_CMP_66;
   Delay_Us(2);
   if (*port_cc_reg & PA_CC_AI) {
-    cmp_result |= bCC_CMP_66; /* 電圧 > 0.66V */
+    cmp_result |= bCC_CMP_66; /* 電圧>0.66V */
   }
 
-  /* デフォルト の コンパレータ 設定を復元 */
+  /* デフォルトのコンパレータ設定を復元 */
   *port_cc_reg &= ~(CC_CMP_Mask | PA_CC_AI);
   *port_cc_reg |= CC_CMP_66;
 
-  /* GPIO をチェック (高い スレッショルド ≈ 2.2V) */
+  /* GPIOをチェック(高いスレッショルド≈2.2V) */
   uint8_t gpio_high = 0;
   if ((GPIOC->INDR & gpio_pin) != (uint32_t)Bit_RESET) {
-    gpio_high = 1; /* 電圧 > 2.2V → オープン */
+    gpio_high = 1; /* 電圧>2.2V→オープン */
   }
 
   /*
-   * 判定 ロジック (ソースモード, Rp = 330uA):
+   * 判定ロジック(ソースモード,Rp=330uA):
    *
-   *   オープン : > 2.2V  → gpio_high=1
-   *   Rd(5.1k): ~ 1.68V → cmp_66=1, gpio_high=0
-   *   Ra(1k)  : ~ 0.33V → cmp_22=1, cmp_66=0
+   *   オープン : >2.2V → gpio_high=1
+   *   Rd(5.1k): ~1.68V → cmp_66=1,gpio_high=0
+   *   Ra(1k)  : ~0.33V → cmp_22=1,cmp_66=0
    */
   if (gpio_high) {
     return 0; /* オープン - デバイスなし */
   } else if (cmp_result & bCC_CMP_66) {
-    return 1; /* Rd 検出 → シンクデバイス */
+    return 1; /* Rd検出 → シンクデバイス */
   } else if (cmp_result & bCC_CMP_22) {
-    return 2; /* Ra 検出 → オーディオアダプタ または VCONN */
+    return 2; /* Ra検出 → オーディオアダプタ または VCONN */
   } else {
     return 0; /* 0.22V 未満 - 非接続として扱う */
   }
@@ -110,13 +110,13 @@ static uint8_t CC_Read_State(volatile uint16_t *port_cc_reg,
 
 /*
  * @fn      USBC_Source_Init
- * @brief   ソースモード 用に USBPD PHY を初期化し、ロードスイッチ GPIO
+ * @brief   ソースモード用にUSBPDPHYを初期化し、ロードスイッチGPIO
  * を設定します。
  *
- * - CC1 (PC14) と CC2 (PC15) の両方で Rp (330uA) プルアップ を有効にします。
- * - ロードスイッチ GPIO (PA1) を 出力 として初期状態 OFF に設定します。
- * - 過電流検知ピン (PA0) を入力として設定します。
- * - 異常表示 LED (PC3) を出力として設定します。
+ * - CC1(PC14)とCC2(PC15)の両方でRp(330uA)プルアップを有効にします。
+ * - ロードスイッチGPIO(PA1)を出力として初期状態OFFに設定します。
+ * - 過電流検知ピン(PA0)を入力として設定します。
+ * - 異常表示LED(PC3)を出力として設定します。
  */
 void USBC_Source_Init(void) {
   GPIO_InitTypeDef GPIO_InitStructure = {0};
@@ -154,20 +154,20 @@ void USBC_Source_Init(void) {
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBPD, ENABLE);
 
-  /* VDD = 3.3V → USBPD_PHY_V33 = 1 (直接 VDD, LDOなし)
-   * 高 スレッショルド 入力: USBPD_IN_HVT = 1 (標準 2.2V) */
+  /* VDD=3.3V→USBPD_PHY_V33=1(直接VDD,LDOなし)
+   * 高スレッショルド入力:USBPD_IN_HVT=1(標準2.2V) */
   AFIO->CTLR |= USBPD_IN_HVT | USBPD_PHY_V33;
 
-  /* PD PHY を有効化 (アナログ セクション: プルアップ 電流源 & コンパレータ
+  /* PD PHYを有効化(アナログセクション:プルアップ電流源&コンパレータ
    * に必要) */
   USBPD->CONFIG = PD_DMA_EN;
 
-  /* すべての PD インタラプトフラグ をクリア */
+  /* すべてのPDインタラプトフラグをクリア */
   USBPD->STATUS =
       BUF_ERR | IF_RX_BIT | IF_RX_BYTE | IF_RX_ACT | IF_RX_RESET | IF_TX_END;
 
-  /* --- ソースモード: 両方の CC ライン で Rp (330uA) を有効化 --- */
-  /* 検出 用の デフォルト コンパレータ スレッショルド として CC_CMP_66 を設定 */
+  /* --- ソースモード: 両方のCCラインでRp(330uA)を有効化 --- */
+  /* 検出用のデフォルトコンパレータスレッショルドとしてCC_CMP_66を設定 */
   USBPD->PORT_CC1 = CC_CMP_66 | CC_PU_330;
   USBPD->PORT_CC2 = CC_CMP_66 | CC_PU_330;
 
@@ -183,13 +183,13 @@ void USBC_Source_Init(void) {
 
 /*
  * @fn      USBC_Source_Detect
- * @brief   周期的な CC 検出。メインループ または タイマー から約 4ms
+ * @brief   周期的なCC検出。メインループまたはタイマーから約4ms
  * ごとに呼び出します。
  *
  * ステートマシン:
- *   DISCONNECTED → CC1 または CC2 で Rd を 検出 → デバウンス → ATTACHED
- * (ロードスイッチ ON) ATTACHED     → アクティブ な CC で オープン を 検出 →
- * デバウンス → DISCONNECTED (ロードスイッチ OFF)
+ *   DISCONNECTED→CC1またはCC2でRdを検出→デバウンス→ATTACHED
+ * (ロードスイッチON)ATTACHED→アクティブなCCでオープンを検出 →
+ * デバウンス→DISCONNECTED(ロードスイッチOFF)
  */
 void USBC_Source_Detect(void) {
   uint8_t cc1_state, cc2_state;
@@ -219,7 +219,7 @@ void USBC_Source_Detect(void) {
     }
   } else /* USBC_SRC_ATTACHED */
   {
-    /* --- アクティブ な CC でのみ デタッチメント を 検出 --- */
+    /* --- アクティブなCCでのみデタッチメントを検出 --- */
     uint8_t active_state;
     if (s_active_cc == 1) {
       active_state = CC_Read_State(&USBPD->PORT_CC1, PIN_CC1);
@@ -227,7 +227,7 @@ void USBC_Source_Detect(void) {
       active_state = CC_Read_State(&USBPD->PORT_CC2, PIN_CC2);
     }
 
-    if (active_state != 1) /* もはや Rd ではない */
+    if (active_state != 1) /* もはやRdではない */
     {
       s_debounce_cnt++;
       if (s_debounce_cnt >= CC_DEBOUNCE_DETACH) {
@@ -252,10 +252,10 @@ void USBC_Source_HandleOC(void) {
   LoadSwitch_Off();
   s_oc_latched = 1;
 
-  /* 異常 LED 点灯 */
+  /* 異常LED点灯 */
   GPIO_WriteBit(FAULT_LED_GPIO_PORT, FAULT_LED_GPIO_PIN, Bit_SET);
 
-  /* ログ出力 (割り込み内なので簡潔に) */
+  /* ログ出力(割り込み内なので簡潔に) */
   printf("\r\n!!! OVER-CURRENT DETECTED (PA0) - SYSTEM LATCHED OFF !!!\r\n");
 }
 
