@@ -3,13 +3,12 @@
  * Author             : WCH
  * Version            : V1.0.0
  * Date               : 2023/04/06
- * Description        : 
-*********************************************************************************
-* Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
-* Attention: This software (modified or not) and binary are used for 
-* microcontroller manufactured by Nanjing Qinheng Microelectronics.
-*******************************************************************************/
-
+ * Description        :
+ *********************************************************************************
+ * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
+ * Attention: This software (modified or not) and binary are used for
+ * microcontroller manufactured by Nanjing Qinheng Microelectronics.
+ *******************************************************************************/
 
 /********************************************************************************/
 /* Header File */
@@ -26,12 +25,12 @@
  *
  * @return  none
  */
-uint8_t HID_GetHidDesr( uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint16_t *plen )
+uint8_t HID_GetHidDesr(uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint16_t *plen)
 {
-    memcpy( pUSBFS_SetupRequest, SetupGetHidDes, sizeof( USB_SETUP_REQ ) );
-    pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
-    pUSBFS_SetupRequest->wLength = *plen;
-    return USBFSH_CtrlTransfer( ep0_size, pbuf, plen );
+	memcpy(pUSBFS_SetupRequest, SetupGetHidDes, sizeof(USB_SETUP_REQ));
+	pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
+	pUSBFS_SetupRequest->wLength = *plen;
+	return USBFSH_CtrlTransfer(ep0_size, pbuf, plen);
 }
 
 /*********************************************************************
@@ -45,11 +44,11 @@ uint8_t HID_GetHidDesr( uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint1
  *
  * @return  none
  */
-uint8_t HID_SetReport( uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint16_t *plen )
+uint8_t HID_SetReport(uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint16_t *plen)
 {
-    memcpy( pUSBFS_SetupRequest, SetupSetReport, sizeof( USB_SETUP_REQ ) );
-    pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
-    return USBFSH_CtrlTransfer( ep0_size, pbuf, plen );
+	memcpy(pUSBFS_SetupRequest, SetupSetReport, sizeof(USB_SETUP_REQ));
+	pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
+	return USBFSH_CtrlTransfer(ep0_size, pbuf, plen);
 }
 
 /*********************************************************************
@@ -62,10 +61,10 @@ uint8_t HID_SetReport( uint8_t ep0_size, uint8_t intf_num, uint8_t *pbuf, uint16
  *
  * @return  none
  */
-uint8_t HID_SetIdle( uint8_t ep0_size, uint8_t intf_num, uint8_t duration, uint8_t reportid )
+uint8_t HID_SetIdle(uint8_t ep0_size, uint8_t intf_num, uint8_t duration, uint8_t reportid)
 {
-    memcpy( pUSBFS_SetupRequest, SetupSetidle, sizeof( USB_SETUP_REQ ) );
-    pUSBFS_SetupRequest->wValue = ( (uint16_t)duration << 8 ) | reportid;
-    pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
-    return USBFSH_CtrlTransfer( ep0_size, NULL, NULL );
+	memcpy(pUSBFS_SetupRequest, SetupSetidle, sizeof(USB_SETUP_REQ));
+	pUSBFS_SetupRequest->wValue = ((uint16_t)duration << 8) | reportid;
+	pUSBFS_SetupRequest->wIndex = (uint16_t)intf_num;
+	return USBFSH_CtrlTransfer(ep0_size, NULL, NULL);
 }
