@@ -14,6 +14,7 @@
 /*******************************************************************************/
 /* Header File */
 #include "usb_host_config.h"
+#include "pin_config.h"
 
  /* USB Endpoint0 Size */
  #ifndef DEFAULT_ENDP0_SIZE
@@ -51,10 +52,10 @@ void GPIO_USB_INIT(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure = {0};
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
-    GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_17 | GPIO_Pin_16;
+    RCC_APB2PeriphClockCmd(USBFS_ID_GPIO_CLK, ENABLE);
+    GPIO_InitStructure.GPIO_Pin =  USBFS_ID_GPIO_PIN_16 | USBFS_ID_GPIO_PIN_17;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
-    GPIO_Init(GPIOC, &GPIO_InitStructure);
+    GPIO_Init(USBFS_ID_GPIO_PORT, &GPIO_InitStructure);
 }
 
 /*********************************************************************

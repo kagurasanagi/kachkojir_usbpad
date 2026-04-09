@@ -11,6 +11,7 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 #include "debug.h"
+#include "pin_config.h"
 
 static uint8_t  p_us = 0;
 static uint16_t p_ms = 0;
@@ -94,12 +95,12 @@ void USART_Printf_Init(uint32_t baudrate)
     USART_InitTypeDef USART_InitStructure;
 
     /* UART1 on Pin 21 (PB10) - this is the DEFAULT mapping, no remap needed */
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOB, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | UART_DEBUG_CLK, ENABLE);
 
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+    GPIO_InitStructure.GPIO_Pin = UART_DEBUG_PIN;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
+    GPIO_Init(UART_DEBUG_PORT, &GPIO_InitStructure);
 
     USART_InitStructure.USART_BaudRate = baudrate; /* FIXED: Use argument baudrate */
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;

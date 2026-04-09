@@ -32,36 +32,36 @@ void SPI1_Slave_Init(void) {
 
   /* クロック有効化: PA, SPI1, AFIO */
   RCC_APB2PeriphClockCmd(
-      RCC_APB2Periph_GPIOA | RCC_APB2Periph_SPI1 | RCC_APB2Periph_AFIO, ENABLE);
+      SPI1_NSS_GPIO_CLK | RCC_APB2Periph_SPI1 | RCC_APB2Periph_AFIO, ENABLE);
 
-  /* SPI1 GPIO設定: PA4:NSS, PA5:SCK, PA6:MISO, PA7:MOSI */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7;
+  /* SPI1 GPIO設定: NSS, SCK, MISO, MOSI */
+  GPIO_InitStructure.GPIO_Pin = SPI1_SCK_GPIO_PIN | SPI1_MOSI_GPIO_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  GPIO_Init(SPI1_SCK_GPIO_PORT, &GPIO_InitStructure);
 
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
+  GPIO_InitStructure.GPIO_Pin = SPI1_MISO_GPIO_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  GPIO_Init(SPI1_MISO_GPIO_PORT, &GPIO_InitStructure);
 
-  /* CS同期用のEXTIとしてPA4を設定（立ち下がりエッジ） */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
+  /* CS同期用のEXTIとしてNSSを設定（立ち下がりエッジ） */
+  GPIO_InitStructure.GPIO_Pin = SPI1_NSS_GPIO_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU; // 内部プルアップ
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  GPIO_Init(SPI1_NSS_GPIO_PORT, &GPIO_InitStructure);
 
-  GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource4);
-  EXTI_InitStructure.EXTI_Line = EXTI_Line4;
+  GPIO_EXTILineConfig(SPI1_NSS_PORT_SOURCE, SPI1_NSS_PIN_SOURCE);
+  EXTI_InitStructure.EXTI_Line = SPI1_NSS_EXTI_LINE;
   EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
   EXTI_InitStructure.EXTI_Trigger =
       EXTI_Trigger_Rising_Falling; // 立ち下がり時の低負荷化のため両エッジ
   EXTI_InitStructure.EXTI_LineCmd = ENABLE;
   EXTI_Init(&EXTI_InitStructure);
 
-  /* /OC 用の EXTI として設定（立ち下がりエッジ） */
+  /* /OC 用の EXTI として設定 */
   GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
   EXTI_InitStructure.EXTI_Line = EXTI_Line0;
   EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-  EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
+  EXTI_InitStructure.EXTI_Trigger = OC_EXTI_TRIGGER;
   EXTI_InitStructure.EXTI_LineCmd = ENABLE;
   EXTI_Init(&EXTI_InitStructure);
 
@@ -130,9 +130,9 @@ void SPI1_DMA_Init(void) {
  */
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt));
 void EXTI7_0_IRQHandler(void) {
-  if (EXTI_GetITStatus(EXTI_Line4) != RESET) {
-    /* PA4 (CS) の状態を確認 */
-    if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_4) == Bit_RESET) {
+  if (EXTI_GetITStatus(SPI1_NSS_EXTI_LINE) != RESET) {
+    /* NSS (CS) の状態を確認 */
+    if (GPIO_ReadInputDataBit(SPI1_NSS_GPIO_PORT, SPI1_NSS_GPIO_PIN) == Bit_RESET) {
       /* --- 通信開始 (FALLING) : 負荷を極小にする --- */
       spi_rx_cnt = 0;
       spi_curr_cmd = 0;
@@ -154,13 +154,13 @@ void EXTI7_0_IRQHandler(void) {
       (void)SPI1->STATR;
     }
 
-    EXTI_ClearITPendingBit(EXTI_Line4);
+    EXTI_ClearITPendingBit(SPI1_NSS_EXTI_LINE);
   }
 
-  /* PA0 (/OC) のチェック */
+  /* /OC のチェック */
   if (EXTI_GetITStatus(EXTI_Line0) != RESET) {
     /* 外部ロードスイッチからの /OC 信号を検知 */
-    if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0) == Bit_RESET) {
+    if (GPIO_ReadInputDataBit(OC_GPIO_PORT, OC_GPIO_PIN) == OC_ON) {
       USBC_Source_HandleOC();
     }
     EXTI_ClearITPendingBit(EXTI_Line0);

@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "spi_slave.h"
 #include "usb_host_config.h"
+#include "pin_config.h"
 #include <string.h>
 
 /*******************************************************************************/
@@ -55,12 +56,16 @@ void USB_Host_Init_Sequence(void) {
    * GPIOPA_CFGLR (0x40010800): PA2ビット11-8,PA3ビット15-12
    * モード: 11(出力50MHz),CNF:00(プッシュプル)->0x3
    */
+  /* LED初期化: Ready, Status */
   {
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-    GPIOA->CFGLR &= ~((0x0F << 8) | (0x0F << 12)); // PA2, PA3ビットをクリア
-    GPIOA->CFGLR |= ((0x03 << 8) | (0x03 << 12)); // PA2, PA3を0x3(PP 50M)に設定
-    GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
-    GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
+    GPIO_InitTypeDef GPIO_InitStructure = {0};
+    RCC_APB2PeriphClockCmd(USB_READY_LED_CLK | USB_STATUS_LED_CLK, ENABLE);
+    GPIO_InitStructure.GPIO_Pin = USB_READY_LED_PIN | USB_STATUS_LED_PIN;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_WriteBit(USB_READY_LED_PORT, USB_READY_LED_PIN, Bit_RESET);
+    GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_RESET);
   }
 
   /* RP2350通信用のSPIスレーブを初期化 */
@@ -367,8 +372,8 @@ void USBH_Process(void) {
     memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
     memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
     memset(Gamepad_Raw_Report_Len, 0, sizeof(Gamepad_Raw_Report_Len));
-    GPIO_WriteBit(GPIOA, GPIO_Pin_2, Bit_RESET);
-    GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
+    GPIO_WriteBit(USB_READY_LED_PORT, USB_READY_LED_PIN, Bit_RESET);
+    GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_RESET);
     Gamepad_Status = GAMEPAD_DISCONNECT;
     Gamepad_Data_Last_Time = 0;
   }
@@ -380,18 +385,18 @@ void USBH_Process(void) {
     Gamepad_Comm_Ready = 0;
   }
 
-  /* PA2レディLED:通信レディステータスに基づく */
-  GPIO_WriteBit(GPIOA, GPIO_Pin_2, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
+  /* USB_READY_LED:通信レディステータスに基づく */
+  GPIO_WriteBit(USB_READY_LED_PORT, USB_READY_LED_PIN, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
 
-  /* PA3ステータスLED:データがフレッシュ(100ms以内)かついずれかの
+  /* USB_STATUS_LED:データがフレッシュ(100ms以内)かついずれかの
    * ビットがセットされている場合に常時更新 */
   uint8_t data_is_fresh =
       ((Current_System_Time - Gamepad_Data_Last_Time) < 100);
   uint8_t *spi_data = Gamepad_SPI_Data[Gamepad_Stable_Idx];
   if (data_is_fresh &&
       (spi_data[0] != 0x00 || spi_data[1] != 0x0f || spi_data[2] != 0xff)) {
-    GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_SET);
+    GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_SET);
   } else {
-    GPIO_WriteBit(GPIOA, GPIO_Pin_3, Bit_RESET);
+    GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_RESET);
   }
 }

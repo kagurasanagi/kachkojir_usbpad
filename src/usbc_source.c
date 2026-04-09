@@ -27,18 +27,14 @@ static uint8_t s_debounce_cnt = 0;
 static uint8_t s_oc_latched = 0; /* 1 = 過電流検出済み (再起動まで維持) */
 
 /* ---------- プライベート ヘルパー ---------- */
-
-/*
- * ロードスイッチ ON/OFF
- */
 static void LoadSwitch_On(void) {
   if (s_oc_latched)
     return; /* 過電流状態では ON にしない */
-  GPIO_WriteBit(LOADSW_GPIO_PORT, LOADSW_GPIO_PIN, Bit_RESET);
+  GPIO_WriteBit(LOADSW_GPIO_PORT, LOADSW_GPIO_PIN, LOADSW_ON);
 }
 
 static void LoadSwitch_Off(void) {
-  GPIO_WriteBit(LOADSW_GPIO_PORT, LOADSW_GPIO_PIN, Bit_SET);
+  GPIO_WriteBit(LOADSW_GPIO_PORT, LOADSW_GPIO_PIN, LOADSW_OFF);
 }
 
 /*
