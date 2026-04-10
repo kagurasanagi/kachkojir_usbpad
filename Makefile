@@ -18,8 +18,7 @@ LD_DIR = $(SDK_DIR)/Ld
 # Include paths
 INCLUDES = \
 	-Iinclude \
-	-Isrc \
-	-Isrc/usb_host \
+	-Iinclude/usb_host \
 	-I$(CORE_DIR) \
 	-I$(PERIPHERAL_DIR)/inc
 
