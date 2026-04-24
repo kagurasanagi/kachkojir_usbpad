@@ -55,5 +55,11 @@ static ReportStatus_t Profile_DefaultGeneric(const uint8_t *report, uint16_t len
 
 /* 
  * Register this profile as the ultimate fallback (VID=0x0000, PID=0x0000)
+ * 
+ * REGISTER_GAMEPAD_PROFILE の引数の意味：
+ * 1. name    : プロファイルの内部登録名。他のプロファイルと被らないユニークな名前を指定（例: default_generic, ps4_v1 など）
+ * 2. vid     : 対象コントローラーの Vendor ID (USB VID)。0x0000 を指定すると「全てのベンダー」にマッチ（フォールバック用）
+ * 3. pid     : 対象コントローラーの Product ID (USB PID)。0x0000 を指定すると「全てのプロダクト」にマッチ
+ * 4. process : 実際にデータのマッピング処理を行う関数ポインタ（上記で定義した関数名）
  */
 REGISTER_GAMEPAD_PROFILE(default_generic, 0x0000, 0x0000, Profile_DefaultGeneric);
