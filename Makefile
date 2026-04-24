@@ -35,8 +35,12 @@ SRCS += \
 	src/usb_host/ch32x035_usbfs_host.c \
 	src/usb_host/ch32x035_it.c \
 	src/usb_host/usb_host_gamepad.c \
+	src/usb_host/gamepad_mapper.c \
 	src/usb_host/usb_host_hid.c \
 	src/usb_host/usb_host_hub.c
+
+# Auto-compile all drop-in gamepad profiles
+SRCS += $(wildcard src/profiles/*.c)
 
 # Source files (SDK Peripherals)
 SRCS += \

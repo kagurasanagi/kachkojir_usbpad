@@ -26,27 +26,20 @@ static uint8_t Gamepad_Comm_Ready = 0;		 // 1 = HOMEボタン後の通信応答�
 static uint32_t PA2_Last_Success_Time = 0;	 // 有効なPID応答があった最後のシステムタイム
 static uint32_t Gamepad_Data_Last_Time = 0;	 // 有効なデータパケット(ERR_SUCCESS)が到着した最後の時間
 
-/* 共有バッファ(ダブルバッファリング) */
-volatile uint8_t Gamepad_Stable_Idx = 0;  // 0または1.現在SPIマスターが読み取って良いインデックス
+/* Shared buffers (Double buffering) */
+volatile uint8_t Gamepad_Stable_Idx = 0;  // 0 or 1. Index SPI master can safely read.
 uint8_t Gamepad_SPI_Data[2][3] = {{0}, {0}};
 uint8_t Gamepad_Raw_Report[2][64] = {{0}, {0}};
 uint8_t Gamepad_Raw_Report_Len[2] = {0, 0};
-uint32_t Current_System_Time = 0;  // TIM3でインクリメントされる
+uint32_t Current_System_Time = 0;  // Incremented by TIM3
+
+static const GamepadProfile_t *current_profile = NULL;
 
 uint16_t Gamepad_VID = 0;
 uint16_t Gamepad_PID = 0;
 uint8_t Gamepad_Raw_Len = 0;
 
-/**
- * @brief  [Y][X] Hat Switch Mapping for SPI Data (Byte 2)
- *         Rows (Y): 0 = Up, 1 = Mid, 2 = Down
- *         Cols (X): 0 = Left, 1 = Mid, 2 = Right
- */
-static const uint8_t hat_map[3][3] = {
-	{0x7, 0x0, 0x1},
-	{0x6, 0xF, 0x2},
-	{0x5, 0x4, 0x3}
-};
+
 
 /**
  * @brief   Initializes the USBFS host, timers, and related peripherals.
@@ -275,44 +268,7 @@ uint8_t GAMEPAD_AnalyzeConfigDesc(uint8_t index, uint8_t ep0_size)
 	return ERR_SUCCESS;
 }
 
-/**
- * @brief   Maps raw HID report bits directly to the 3-byte SPI buffer.
- *          Implements double buffering with critical sections to prevent tearing.
- * @param   report Pointer to raw HID report data
- * @param   len    Length of the report
- * @return  None
- */
-void Gamepad_Data_Map(uint8_t *report, uint16_t len)
-{
-	uint8_t write_idx = 1 - Gamepad_Stable_Idx;	 // 現在SPIマスターが読んでいない方に書き込む
-
-	if (len < 7)
-		return;
-
-	/* 全ビットを最初にクリア(または前回の状態をコピーするかは設計
-	 * 次第。ここではクリア) */
-	memset(Gamepad_SPI_Data[write_idx], 0, 3);
-
-	Gamepad_SPI_Data[write_idx][0] = report[0];
-	Gamepad_SPI_Data[write_idx][1] = (report[1] & 0x0F) << 4 | report[2] & 0x0F;
-
-	/* --- Byte 2: Analog Threshold Processing for Hat Simulation --- */
-	uint8_t ly = (report[4] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[4] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
-	uint8_t lx = (report[3] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[3] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
-	uint8_t ry = (report[6] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[6] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
-	uint8_t rx = (report[5] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[5] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
-	Gamepad_SPI_Data[write_idx][2] = hat_map[ly][lx] << 4 | hat_map[ry][rx];
-
-	/* 生レポートも保存 */
-	uint16_t copy_len = (len > 64) ? 64 : len;
-	memcpy(Gamepad_Raw_Report[write_idx], report, copy_len);
-	Gamepad_Raw_Report_Len[write_idx] = (uint8_t)copy_len;
-
-	/* ★ Atomic switch of the stable index to prevent read-tearing by SPI DMA ★ */
-	__disable_irq();
-	Gamepad_Stable_Idx = write_idx;
-	__enable_irq();
-}
+/* The Gamepad_Data_Map and hat_map logic has been moved to gamepad_mapper.c */
 
 /**
  * @brief   Main USB host state machine processor.
@@ -337,8 +293,9 @@ void USBH_Process(void)
 				if (RootHubDev.bType == USB_DEV_CLASS_HID)
 				{
 					GAMEPAD_AnalyzeConfigDesc(0, RootHubDev.bEp0MaxPks);
+					current_profile = GamepadMapper_FindProfile(Gamepad_VID, Gamepad_PID);
 					Gamepad_Status = GAMEPAD_ENUMERATED;
-					printf("Gamepad OK (EP0=%d, Interfaces=%d)\r\n", RootHubDev.bEp0MaxPks, HostCtl[0].InterfaceNum);
+					printf("Gamepad OK (VID=%04X, PID=%04X, Interfaces=%d)\r\n", Gamepad_VID, Gamepad_PID, HostCtl[0].InterfaceNum);
 				}
 				else
 				{
@@ -393,16 +350,35 @@ void USBH_Process(void)
 						}
 					}
 
-					if (s == ERR_SUCCESS && len > 0)
+					if (s == ERR_SUCCESS && len > 0 && current_profile != NULL)
 					{
-						Gamepad_Data_Last_Time = Current_System_Time;
-						Gamepad_Raw_Len = (uint8_t)len;
-						Gamepad_Data_Map(Gamepad_Report_Buf, len);
+						uint8_t write_idx = 1 - Gamepad_Stable_Idx;
 
-						/* オプション: レポート変更時のみログ出力(最小限のログ) */
-						if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
+						/* Clear the output buffer before processing */
+						memset(Gamepad_SPI_Data[write_idx], 0, 3);
+
+						/* Call the profile-specific parsing logic */
+						if (current_profile->process(Gamepad_Report_Buf, len, Gamepad_SPI_Data[write_idx]) == REPORT_HANDLED)
 						{
-							memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
+							/* Save the raw report for debugging/passthrough */
+							uint16_t copy_len = (len > 64) ? 64 : len;
+							memcpy(Gamepad_Raw_Report[write_idx], Gamepad_Report_Buf, copy_len);
+							Gamepad_Raw_Report_Len[write_idx] = (uint8_t)copy_len;
+
+							/* ★ Atomic switch of the stable index to prevent read-tearing by SPI DMA ★ */
+							__disable_irq();
+							Gamepad_Stable_Idx = write_idx;
+							__enable_irq();
+
+							/* Tell the host loop we've updated data */
+							Gamepad_Data_Last_Time = Current_System_Time;
+							Gamepad_Raw_Len = (uint8_t)len;
+
+							/* Optional: Update logs if report changed */
+							if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
+							{
+								memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
+							}
 						}
 					}
 				}

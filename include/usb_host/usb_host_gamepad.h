@@ -17,6 +17,7 @@ extern "C"
 #include <stdint.h>
 
 #include "usb_host_config.h"
+#include "gamepad_mapper.h"
 
 /* USB Gamepad Status */
 #define GAMEPAD_DISCONNECT 0
