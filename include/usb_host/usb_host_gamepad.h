@@ -37,6 +37,7 @@ extern "C"
 	extern uint8_t Gamepad_SPI_Data[2][3];
 	extern uint8_t Gamepad_Raw_Report[2][64];
 	extern uint8_t Gamepad_Raw_Report_Len[2];
+	extern uint8_t Gamepad_Is_Switch_Clone;
 
 	/* パブリック関数 */
 	void USB_Host_Init_Sequence(void);

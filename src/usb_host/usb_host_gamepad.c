@@ -38,6 +38,7 @@ static const GamepadProfile_t *current_profile = NULL;
 uint16_t Gamepad_VID = 0;
 uint16_t Gamepad_PID = 0;
 uint8_t Gamepad_Raw_Len = 0;
+uint8_t Gamepad_Is_Switch_Clone = 0;	// 偽物Switchコントローラーのフラグ
 
 
 
@@ -69,6 +70,15 @@ void USB_Host_Init_Sequence(void)
 		GPIO_Init(GPIOA, &GPIO_InitStructure);
 		GPIO_WriteBit(USB_READY_LED_PORT, USB_READY_LED_PIN, Bit_RESET);
 		GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_RESET);
+	}
+
+	/* デバッグ用ピン初期化: 15番ピン(PB4)を内部プルダウン */
+	{
+		GPIO_InitTypeDef GPIO_InitStructure = {0};
+		RCC_APB2PeriphClockCmd(DEBUG_DUMP_GPIO_CLK, ENABLE);
+		GPIO_InitStructure.GPIO_Pin = DEBUG_DUMP_GPIO_PIN;
+		GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
+		GPIO_Init(DEBUG_DUMP_GPIO_PORT, &GPIO_InitStructure);
 	}
 
 	/* RP2350通信用のSPIスレーブを初期化 */
@@ -158,6 +168,68 @@ void USBH_AnalyseType(uint8_t *pdev_buf, uint8_t *pcfg_buf, uint8_t *ptype)
 }
 
 /*******************************************************************************
+ * @fn      LogUSBString
+ * @brief   Prints a USB string descriptor as ASCII.
+ */
+static void LogUSBString(uint8_t ep0_size, uint8_t index, const char *label)
+{
+	printf("%-18s: ", label);
+	if (index == 0)
+	{
+		printf("(None)\r\n");
+		return;
+	}
+	uint8_t buf[64];
+	if (USBFSH_GetStrDescr(ep0_size, index, buf) == ERR_SUCCESS)
+	{
+		if (buf[0] > 2)
+		{
+			for (int i = 2; i < buf[0]; i += 2)
+			{
+				printf("%c", buf[i]);
+			}
+			printf("\r\n");
+		}
+		else
+		{
+			printf("(Empty)\r\n");
+		}
+	}
+	else
+	{
+		printf("(Read Error)\r\n");
+	}
+}
+
+/*******************************************************************************
+ * @fn      CheckSwitchCloneAnomaly
+ * @brief   製造元が空、製品名が "Gamepad" の場合にフラグをセットする
+ */
+static void CheckSwitchCloneAnomaly(uint8_t ep0_size, uint8_t iManufacturer, uint8_t iProduct)
+{
+	uint8_t buf[64];
+	Gamepad_Is_Switch_Clone = 0;
+
+	/* 製造元が空であることを確認 */
+	if (iManufacturer != 0)
+		return;
+
+	/* 製品名を取得して "Gamepad" か確認 */
+	if (iProduct != 0 && USBFSH_GetStrDescr(ep0_size, iProduct, buf) == ERR_SUCCESS)
+	{
+		/* "Gamepad" は UTF-16 で 'G',0,'a',0,'m',0,'e',0,'p',0,'a',0,'d',0 (14 bytes characters)
+		   Descriptor header は 2 bytes なので合計 16 bytes */
+		if (buf[0] == 16 &&
+			buf[2] == 'G' && buf[4] == 'a' && buf[6] == 'm' && buf[8] == 'e' &&
+			buf[10] == 'p' && buf[12] == 'a' && buf[14] == 'd')
+		{
+			Gamepad_Is_Switch_Clone = 1;
+			printf("Detected possible Switch Controller clone (anomaly mitigation enabled)\r\n");
+		}
+	}
+}
+
+/*******************************************************************************
  * @fn      USBH_EnumRootDevice
  */
 uint8_t USBH_EnumRootDevice(void)
@@ -199,6 +271,14 @@ ENUM_START:
 	if (s != ERR_SUCCESS)
 		goto ENUM_START;
 	Delay_Ms(5);
+
+	/* Read string descriptors (Manufacturer, Product, and SerialNumber) */
+	LogUSBString(RootHubDev.bEp0MaxPks, DevDesc_Buf[14], "Manufacturer");
+	LogUSBString(RootHubDev.bEp0MaxPks, DevDesc_Buf[15], "Product");
+	LogUSBString(RootHubDev.bEp0MaxPks, DevDesc_Buf[16], "SerialNumber");
+
+	/* 偽物コントローラーの判定 */
+	CheckSwitchCloneAnomaly(RootHubDev.bEp0MaxPks, DevDesc_Buf[14], DevDesc_Buf[15]);
 
 	s = USBFSH_GetConfigDescr(RootHubDev.bEp0MaxPks, Com_Buf, DEF_COM_BUF_LEN, &len);
 	if (s == ERR_SUCCESS)
@@ -290,6 +370,7 @@ void USBH_Process(void)
 			uint8_t enum_res = USBH_EnumRootDevice();
 			if (enum_res == ERR_SUCCESS)
 			{
+				printf("Enumeration success: VID=%04X, PID=%04X\r\n", Gamepad_VID, Gamepad_PID);
 				if (RootHubDev.bType == USB_DEV_CLASS_HID)
 				{
 					GAMEPAD_AnalyzeConfigDesc(0, RootHubDev.bEp0MaxPks);
@@ -315,7 +396,6 @@ void USBH_Process(void)
 			memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
 			memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
 			memset(Gamepad_Raw_Report_Len, 0, sizeof(Gamepad_Raw_Report_Len));
-			SPI1_Update_Data(Gamepad_SPI_Data[Gamepad_Stable_Idx]);
 		}
 		else if (s == ROOT_DEV_FAILED)
 		{
@@ -378,6 +458,17 @@ void USBH_Process(void)
 							if (memcmp(Gamepad_Report_Buf, Gamepad_Prev_Report_Buf, len) != 0)
 							{
 								memcpy(Gamepad_Prev_Report_Buf, Gamepad_Report_Buf, len);
+
+								/* 15番ピンがHighならレポートをダンプ */
+								if (GPIO_ReadInputDataBit(DEBUG_DUMP_GPIO_PORT, DEBUG_DUMP_GPIO_PIN) == Bit_SET)
+								{
+									printf("RAW (len=%d): ", len);
+									for (uint16_t i = 0; i < len; i++)
+									{
+										printf("%02X ", Gamepad_Report_Buf[i]);
+									}
+									printf("\r\n");
+								}
 							}
 						}
 					}

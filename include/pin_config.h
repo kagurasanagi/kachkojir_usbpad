@@ -83,4 +83,10 @@
 #define USBFS_ID_GPIO_PIN_17 GPIO_Pin_17
 #define USBFS_ID_GPIO_CLK RCC_APB2Periph_GPIOC
 
+/* ---------- デバッグ用 設定 ---------- */
+/* 15番ピン (PB4) をレポートダンプのトリガーに使用 */
+#define DEBUG_DUMP_GPIO_PORT GPIOB
+#define DEBUG_DUMP_GPIO_PIN GPIO_Pin_4
+#define DEBUG_DUMP_GPIO_CLK RCC_APB2Periph_GPIOB
+
 #endif /* __PIN_CONFIG_H */

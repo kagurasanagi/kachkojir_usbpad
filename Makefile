@@ -53,6 +53,7 @@ SRCS += \
 	$(PERIPHERAL_DIR)/src/ch32x035_pwr.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_dma.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_flash.c \
+	$(PERIPHERAL_DIR)/src/ch32x035_iwdg.c \
 	$(PERIPHERAL_DIR)/src/ch32x035_misc.c
 
 # Startup file
@@ -62,7 +63,7 @@ ASMS = $(SDK_DIR)/Startup/startup_ch32x035.S
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o))) $(addprefix $(OBJ_DIR)/, $(notdir $(ASMS:.S=.o)))
 
 # Search paths for source files (VPATH)
-VPATH = src:src/usb_host:$(PERIPHERAL_DIR)/src:$(SDK_DIR)/Startup
+VPATH = src:src/usb_host:src/profiles:$(PERIPHERAL_DIR)/src:$(SDK_DIR)/Startup
 
 # Compilation flags
 CFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -msmall-data-limit=8 -mno-save-restore -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -Wunused -Wuninitialized -g $(INCLUDES) -DCH32X035
