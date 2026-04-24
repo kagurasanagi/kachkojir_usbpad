@@ -117,15 +117,13 @@ static uint8_t CC_Read_State(volatile uint16_t *port_cc_reg, uint16_t gpio_pin)
 
 /* ---------- パブリック API ---------- */
 
-/*
- * @fn      USBC_Source_Init
- * @brief   ソースモード用にUSBPDPHYを初期化し、ロードスイッチGPIO
- * を設定します。
- *
- * - CC1(PC14)とCC2(PC15)の両方でRp(330uA)プルアップを有効にします。
- * - ロードスイッチGPIO(PA1)を出力として初期状態OFFに設定します。
- * - 過電流検知ピン(PA0)を入力として設定します。
- * - 異常表示LED(PC3)を出力として設定します。
+/**
+ * @brief   Initializes USBPD PHY for Source mode and configures Load Switch GPIO.
+ *          - Enables Rp (330uA) pull-ups on both CC1 (PC14) and CC2 (PC15).
+ *          - Sets Load Switch GPIO (PA1) as output, initially OFF.
+ *          - Sets Over-Current detection pin (PA0) as input.
+ *          - Sets Fault LED (PC3) as output.
+ * @return  None
  */
 void USBC_Source_Init(void)
 {
@@ -190,15 +188,12 @@ void USBC_Source_Init(void)
 	printf("USBC Source Init OK (Rp=330uA on CC1/CC2)\r\n");
 }
 
-/*
- * @fn      USBC_Source_Detect
- * @brief   周期的なCC検出。メインループまたはタイマーから約4ms
- * ごとに呼び出します。
- *
- * ステートマシン:
- *   DISCONNECTED→CC1またはCC2でRdを検出→デバウンス→ATTACHED
- * (ロードスイッチON)ATTACHED→アクティブなCCでオープンを検出 →
- * デバウンス→DISCONNECTED(ロードスイッチOFF)
+/**
+ * @brief   Periodic CC detection logic. Call every ~4-10ms from the main loop or timer.
+ *          State Machine:
+ *            DISCONNECTED -> Detect Rd on CC1 or CC2 -> Debounce -> ATTACHED (Load SW ON)
+ *            ATTACHED -> Detect Open on active CC -> Debounce -> DISCONNECTED (Load SW OFF)
+ * @return  None
  */
 void USBC_Source_Detect(void)
 {
@@ -275,6 +270,10 @@ uint8_t USBC_Source_GetActiveCC(void)
 	return s_active_cc;
 }
 
+/**
+ * @brief   Handles over-current (OC) fault. Disables load switch immediately and latches the state.
+ * @return  None
+ */
 void USBC_Source_HandleOC(void)
 {
 	/* 最優先で遮断 */

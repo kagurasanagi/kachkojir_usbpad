@@ -5,13 +5,12 @@
 #include "usb_host_gamepad.h"
 #include "usbc_source.h"
 
-/* グローバル通信状態 */
-volatile uint8_t spi_rx_cnt = 0;
-volatile uint8_t spi_curr_cmd = 0;
-uint8_t spi_tx_tmp[SPI_BUFF_SIZE];	// 一時的な応答バッファ
+/* Global communication state */
+static volatile uint8_t spi_rx_cnt = 0;
+static volatile uint8_t spi_curr_cmd = 0;
+uint8_t spi_tx_tmp[SPI_BUFF_SIZE];	// Temporary response buffer
 
-/* 最適化: 1MHzでのジッターフリーな信頼性のためのDMAベースの応答 */
-static uint8_t spi_tx_snapshot[64];	 // レースコンディションを防ぐためのスナップショットバッファ
+/* Optimization: DMA-based response for reliable jitter-free 1MHz SPI */
 static uint8_t spi_res_null = 0;
 static uint8_t *spi_tx_ptr = &spi_res_null;
 static uint8_t spi_tx_len = 0;
@@ -21,9 +20,10 @@ static uint8_t spi_res_status;
 static uint8_t spi_res_version[2] = {0x01, 0x09};  // v1.9
 static uint8_t spi_res_id[4];
 
-/*********************************************************************
- * @fn      SPI1_Slave_Init
- * @brief   CS同期用のEXTIを備えたスレーブとしてSPI1を初期化します。
+/**
+ * @brief   Initializes SPI1 as a slave with EXTI for CS synchronization.
+ *          Configures GPIOs, EXTI on NSS (PA4) and OC (PA0), and SPI/DMA.
+ * @return  None
  */
 void SPI1_Slave_Init(void)
 {
@@ -97,10 +97,10 @@ void SPI1_Slave_Init(void)
 	SPI1_DMA_Init();
 }
 
-/*********************************************************************
- * @fn      SPI1_DMA_Init
- * @brief   必要に応じてマルチバイト応答用のDMA1を初期化します。
- *          （現在はロジックに割り込みを使用しており、RAWデータ用に後でDMAを追加可能）
+/**
+ * @brief   Initializes DMA1 Channel 3 for multi-byte SPI responses.
+ *          This allows fast memory-to-peripheral transfers without CPU overhead.
+ * @return  None
  */
 void SPI1_DMA_Init(void)
 {
@@ -111,7 +111,7 @@ void SPI1_DMA_Init(void)
 	/* SPI1 TX用のDMA1 チャンネル3 */
 	DMA_DeInit(DMA1_Channel3);
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&SPI1->DATAR;
-	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)spi_tx_snapshot;
+	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)NULL; /* Configured during command reception */
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
 	DMA_InitStructure.DMA_BufferSize = 0;  // コマンド受信時に設定
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -124,9 +124,10 @@ void SPI1_DMA_Init(void)
 	DMA_Init(DMA1_Channel3, &DMA_InitStructure);
 }
 
-/*********************************************************************
- * @fn      EXTI7_0_IRQHandler
- * @brief   NSS (PA4) 立ち下がりエッジ - 通信状態をリセットします。
+/**
+ * @brief   EXTI Line 7..0 Interrupt Handler.
+ *          Handles NSS (PA4) edges to reset SPI state, and /OC (PA0) faults.
+ * @return  None
  */
 void EXTI7_0_IRQHandler(void) __attribute__((interrupt));
 void EXTI7_0_IRQHandler(void)
@@ -174,9 +175,10 @@ void EXTI7_0_IRQHandler(void)
 	}
 }
 
-/*********************************************************************
- * @fn      SPI1_IRQHandler
- * @brief   コマンド解析と応答のためのSPI割り込みを処理します。
+/**
+ * @brief   SPI1 Interrupt Handler.
+ *          Handles command parsing on RX and initiates DMA for TX responses.
+ * @return  None
  */
 void SPI1_IRQHandler(void) __attribute__((interrupt));
 void SPI1_IRQHandler(void)
@@ -262,7 +264,4 @@ void SPI1_IRQHandler(void)
 	}
 }
 
-void SPI1_Update_Data(uint8_t *data)
-{
-	/* ISR内の volatile Gamepad_SPI_Final によって処理されます */
-}
+

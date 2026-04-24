@@ -15,17 +15,31 @@ int main(void)
 	/* 3. USB Type-Cソース初期化 (CCモニタリング + PA0のロードスイッチ) */
 	USBC_Source_Init();
 
+	/* 4. Independent Watchdog (IWDG) Initialization (~2.0 seconds) */
+	IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
+	IWDG_SetPrescaler(IWDG_Prescaler_128); /* 32kHz / 128 = 250Hz (4ms per tick) */
+	IWDG_SetReload(500);                   /* 500 * 4ms = 2000ms (2.0s timeout) */
+	IWDG_ReloadCounter();
+	IWDG_Enable();
+
 	printf("\r\n=== Kachkojir USB Pad ===\r\n");
 
 	// __DATE__="Mmm DD YYYY" を "YYYY-MM-DD" に変換
-	const char *m = __DATE__;
+	char m[12];
+	strncpy(m, __DATE__, sizeof(m));
+	m[sizeof(m) - 1] = '\0';
+	
 	int yy = ((m[7] - '0') * 1000) + ((m[8] - '0') * 100) + ((m[9] - '0') * 10) + (m[10] - '0');
 	int dd = ((m[4] == ' ' ? '0' : m[4]) - '0') * 10 + (m[5] - '0');
+	
 	const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-	int mm = 0;
-	for (int i = 0; i < 12; i++)
-		if (m[0] == months[i][0] && m[1] == months[i][1] && m[2] == months[i][2])
+	int mm = 1;
+	for (int i = 0; i < 12; i++) {
+		if (strncmp(m, months[i], 3) == 0) {
 			mm = i + 1;
+			break;
+		}
+	}
 
 	printf("Build: %04d-%02d-%02d %s\r\n", yy, mm, dd, __TIME__);
 
@@ -46,5 +60,8 @@ int main(void)
 			last_cc_check = Current_System_Time;
 			USBC_Source_Detect();
 		}
+
+		/* IWDGをクリアしてリセットを防止 */
+		IWDG_ReloadCounter();
 	}
 }

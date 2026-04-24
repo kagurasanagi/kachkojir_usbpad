@@ -37,9 +37,21 @@ uint16_t Gamepad_VID = 0;
 uint16_t Gamepad_PID = 0;
 uint8_t Gamepad_Raw_Len = 0;
 
-/*******************************************************************************
- * @fn      USB_Host_Init_Sequence
- * @brief   USBFSホストと周辺機器を初期化します。
+/**
+ * @brief  [Y][X] Hat Switch Mapping for SPI Data (Byte 2)
+ *         Rows (Y): 0 = Up, 1 = Mid, 2 = Down
+ *         Cols (X): 0 = Left, 1 = Mid, 2 = Right
+ */
+static const uint8_t hat_map[3][3] = {
+	{0x7, 0x0, 0x1},
+	{0x6, 0xF, 0x2},
+	{0x5, 0x4, 0x3}
+};
+
+/**
+ * @brief   Initializes the USBFS host, timers, and related peripherals.
+ *          Wait for enumeration to complete after setup.
+ * @return  None
  */
 void USB_Host_Init_Sequence(void)
 {
@@ -263,10 +275,12 @@ uint8_t GAMEPAD_AnalyzeConfigDesc(uint8_t index, uint8_t ep0_size)
 	return ERR_SUCCESS;
 }
 
-/*******************************************************************************
- * @fn      Gamepad_Data_Map
- * @brief   HIDレポートビットをSPIバッファに直接マップします。
- *          ダブルバッファリングを使用してティアリングを防止します。
+/**
+ * @brief   Maps raw HID report bits directly to the 3-byte SPI buffer.
+ *          Implements double buffering with critical sections to prevent tearing.
+ * @param   report Pointer to raw HID report data
+ * @param   len    Length of the report
+ * @return  None
  */
 void Gamepad_Data_Map(uint8_t *report, uint16_t len)
 {
@@ -282,18 +296,11 @@ void Gamepad_Data_Map(uint8_t *report, uint16_t len)
 	Gamepad_SPI_Data[write_idx][0] = report[0];
 	Gamepad_SPI_Data[write_idx][1] = (report[1] & 0x0F) << 4 | report[2] & 0x0F;
 
-	/* --- バイト 2: アナログ スレッショルド処理 --- */
-	// [Y][X] の順でハットスイッチの値を定義
-	static const uint8_t hat_map[3][3] = {
-		{0x7, 0x0, 0x1},  // Y < 0x40 (Up):
-		{0x6, 0xF, 0x2},  // Y Mid:
-		{0x5, 0x4, 0x3}	  // Y > 0xC0 (Down):
-	};
-	// 状態を 0(Low), 1(Mid), 2(High) に変換
-	uint8_t ly = (report[4] < 0x40) ? 0 : (report[4] > 0xC0 ? 2 : 1);
-	uint8_t lx = (report[3] < 0x40) ? 0 : (report[3] > 0xC0 ? 2 : 1);
-	uint8_t ry = (report[6] < 0x40) ? 0 : (report[6] > 0xC0 ? 2 : 1);
-	uint8_t rx = (report[5] < 0x40) ? 0 : (report[5] > 0xC0 ? 2 : 1);
+	/* --- Byte 2: Analog Threshold Processing for Hat Simulation --- */
+	uint8_t ly = (report[4] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[4] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
+	uint8_t lx = (report[3] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[3] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
+	uint8_t ry = (report[6] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[6] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
+	uint8_t rx = (report[5] < JOYSTICK_ANALOG_LOW_THRESH) ? 0 : (report[5] > JOYSTICK_ANALOG_HIGH_THRESH ? 2 : 1);
 	Gamepad_SPI_Data[write_idx][2] = hat_map[ly][lx] << 4 | hat_map[ry][rx];
 
 	/* 生レポートも保存 */
@@ -301,15 +308,16 @@ void Gamepad_Data_Map(uint8_t *report, uint16_t len)
 	memcpy(Gamepad_Raw_Report[write_idx], report, copy_len);
 	Gamepad_Raw_Report_Len[write_idx] = (uint8_t)copy_len;
 
-	/* ★ ここでインデックスを切り替える(アトミック操作) ★ */
+	/* ★ Atomic switch of the stable index to prevent read-tearing by SPI DMA ★ */
+	__disable_irq();
 	Gamepad_Stable_Idx = write_idx;
-
-	/* SPIスレーブバッファ自体の更新(以前の関数を使用する場合) */
-	SPI1_Update_Data(Gamepad_SPI_Data[Gamepad_Stable_Idx]);
+	__enable_irq();
 }
 
-/*******************************************************************************
- * @fn      USBH_Process
+/**
+ * @brief   Main USB host state machine processor.
+ *          Should be called frequently in the main loop to handle polling and device status.
+ * @return  None
  */
 void USBH_Process(void)
 {
@@ -430,11 +438,11 @@ void USBH_Process(void)
 	/* USB_READY_LED:通信レディステータスに基づく */
 	GPIO_WriteBit(USB_READY_LED_PORT, USB_READY_LED_PIN, (Gamepad_Comm_Ready) ? Bit_SET : Bit_RESET);
 
-	/* USB_STATUS_LED:データがフレッシュ(100ms以内)かついずれかの
-	 * ビットがセットされている場合に常時更新 */
+	/* USB_STATUS_LED: Always update if data is fresh (within 100ms) and any
+	 * non-neutral bit is set */
 	uint8_t data_is_fresh = ((Current_System_Time - Gamepad_Data_Last_Time) < 100);
 	uint8_t *spi_data = Gamepad_SPI_Data[Gamepad_Stable_Idx];
-	if (data_is_fresh && (spi_data[0] != 0x00 || spi_data[1] != 0x0f || spi_data[2] != 0xff))
+	if (data_is_fresh && (spi_data[0] != 0x00 || spi_data[1] != JOYSTICK_NEUTRAL_VAL_BYTE1 || spi_data[2] != JOYSTICK_NEUTRAL_VAL_BYTE2))
 	{
 		GPIO_WriteBit(USB_STATUS_LED_PORT, USB_STATUS_LED_PIN, Bit_SET);
 	}
