@@ -21,11 +21,13 @@ extern "C"
 #define CC_DEBOUNCE_ATTACH 12 /* 10ms x 12 = 120ms (接続規格: 100〜200msを満たす) */
 #define CC_DEBOUNCE_DETACH 2 /* 10ms x 2  =  20ms (切断規格: 10〜20ms程度を満たす) */
 
-	/* ---------- ステート ---------- */
+	/**
+	 * @brief USB Type-C Source States
+	 */
 	typedef enum
 	{
-		USBC_SRC_DISCONNECTED = 0,
-		USBC_SRC_ATTACHED, /* シンク (Rd) を 検出 */
+		USBC_SRC_DISCONNECTED = 0, /**< No Sink detected, VBUS is OFF */
+		USBC_SRC_ATTACHED,         /**< Sink (Rd) detected, VBUS is ON */
 	} USBC_SRC_State_t;
 
 	/* ---------- パブリック API ---------- */

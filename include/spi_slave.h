@@ -39,7 +39,6 @@ extern "C"
 	/* パブリック関数 */
 	void SPI1_Slave_Init(void);
 	void SPI1_DMA_Init(void);
-	void SPI1_Update_Data(uint8_t *data);
 
 #ifdef __cplusplus
 }
