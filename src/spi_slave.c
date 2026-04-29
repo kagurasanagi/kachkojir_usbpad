@@ -71,7 +71,7 @@ void SPI1_Slave_Init(void)
 	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
 	SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;	  // READMEに従いモード0
 	SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;  // READMEに従いモード0
-	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;	  // カスタム状態処理のためにEXTIを使用
+	SPI_InitStructure.SPI_NSS = SPI_NSS_Hard;	  // ハードウェアNSS管理により通信終了時の自動リセットを有効化（EXTIも併用）
 	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
 	SPI_InitStructure.SPI_CRCPolynomial = 7;
 	SPI_Init(SPI1, &SPI_InitStructure);
@@ -144,6 +144,7 @@ void EXTI7_0_IRQHandler(void)
 		else
 		{
 			/* --- 通信終了 (RISING) : アイドル中に次回の準備を済ませる --- */
+
 			/* CS立ち上がり時にアクティブなDMA転送を即座に停止 */
 			DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
 			SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
