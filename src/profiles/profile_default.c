@@ -7,37 +7,15 @@
  *******************************************************************************/
 
 #include "gamepad_mapper.h"
+#include "profile_common.h"
 #include "usb_host_gamepad.h" // For threshold macros
 
 /**
- * @brief  [Y][X] Hat Switch Mapping for SPI Data (Byte 2)
- *         Rows (Y): 0 = Up, 1 = Mid, 2 = Down
- *         Cols (X): 0 = Left, 1 = Mid, 2 = Right
- */
-static const uint8_t hat_map[3][3] = {
-	{0x7, 0x0, 0x1},
-	{0x6, 0xF, 0x2},
-	{0x5, 0x4, 0x3}
-};
-
-/**
  * @brief   Default Generic Gamepad Mapping Profile
- *          Handles standard controllers and filters out >=64 byte anomalies.
+ *          Maps standard HID report layout: bytes 0-2 buttons, bytes 3-6 analog sticks.
  */
 static ReportStatus_t Profile_DefaultGeneric(const uint8_t *report, uint16_t len, uint8_t *spi_out)
 {
-	/* 
-	 * DirectInputモード移行中などに送られてくる、通常のボタン入力ではない
-	 * 特別なレポート（異常なデータ）への対策として、64バイト以上のレポートは無視する。
-	 */
-	// if (len >= 64) {
-	//     return REPORT_IGNORED;
-	// }
-
-	// if (len < 7) {
-	//     return REPORT_IGNORED;
-	// }
-
 	/* Byte 0 and Byte 1 (Buttons) */
 	spi_out[0] = report[0];
 	spi_out[1] = (report[1] & 0x0F) << 4 | (report[2] & 0x0F);

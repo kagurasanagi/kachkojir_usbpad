@@ -41,7 +41,6 @@ extern "C"
 
 	/* パブリック関数 */
 	void USB_Host_Init_Sequence(void);
-	void USBH_MainInterrupt(void);
 	void USBH_Process(void);
 	void TIM3_Init(uint16_t arr, uint16_t psc);
 

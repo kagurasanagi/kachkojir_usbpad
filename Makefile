@@ -75,10 +75,10 @@ LDFLAGS = -march=rv32ec_zicsr_zifencei -mabi=ilp32e -T $(LD_DIR)/Link.ld -nostar
 all: $(BUILD_DIR) $(OBJ_DIR) $(TARGET).elf $(TARGET).bin $(TARGET).hex
 
 $(BUILD_DIR):
-	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)
 
 $(OBJ_DIR):
-	@if not exist $(OBJ_DIR) mkdir build\obj
+	mkdir -p $(OBJ_DIR)
 
 $(TARGET).elf: $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) -o $@
@@ -98,7 +98,7 @@ $(OBJ_DIR)/%.o: %.S
 	$(OBJCOPY) -O ihex $< $@
 
 clean:
-	@if exist $(BUILD_DIR) rd /s /q $(BUILD_DIR)
+	rm -rf $(BUILD_DIR)
 
 flash: $(TARGET).bin
 	@echo "Flashing: $(TARGET).bin"

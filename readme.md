@@ -121,11 +121,36 @@ RP2350(Master)がCH32X035(Slave)から読み取るデータは以下の**3バイ
 
 | バイト | ビット | 内容 | 備考 |
 | :--- | :--- | :--- | :--- |
-| **Byte 0** | 7:0 | ボタン 1-8 (Raw) | 通常のデジタルボタン |
-| **Byte 1** | 7:4 | ボタン 9-12 (Low 4bit) | `report[1]` の下位4ビット |
-| | 3:0 | ボタン 13-16 (Low 4bit) | `report[2]` の下位4ビット |
+| **Byte 0** | 7:0 | ボタン 1-8 (Raw) | A/B/X/Y/L1/R1/L2/R2 ([詳細](#byte0_map)) |
+| **Byte 1** | 7:4 | 十字キー | 0:上, 2:右, 4:下, 6:左 / 8:中立 |
+|            | 3:0 | ボタン 9-12 | Select/Start/L3/R3 ([詳細](#byte1_map)) |
 | **Byte 2** | 7:4 | 左スティック ハット | 0:N, 1:NE, 2:E, 3:SE, 4:S, 5:SW, 6:W, 7:NW, 0xF:中立 |
-| | 3:0 | 右スティック ハット | 0:N, 1:NE, 2:E, 3:SE, 4:S, 5:SW, 6:W, 7:NW, 0xF:中立 |
+|            | 3:0 | 右スティック ハット | 0:N, 1:NE, 2:E, 3:SE, 4:S, 5:SW, 6:W, 7:NW, 0xF:中立 |
+
+<a id="byte0_map"></a>
+#### Byte 0: ボタン割り当て詳細 (1-8)
+
+| ビット | 物理ボタン (Usage ID) | 一般的な名称 (例: Xbox/PS系) |
+| :--- | :--- | :--- |
+| Bit 0 (LSB) | Button 1 | A / × |
+| Bit 1 | Button 2 | B / ○ |
+| Bit 2 | Button 3 | X / □ |
+| Bit 3 | Button 4 | Y / △ |
+| Bit 4 | Button 5 | L1 / LB |
+| Bit 5 | Button 6 | R1 / RB |
+| Bit 6 | Button 7 | L2 / LT (デジタル入力時) |
+| Bit 7 (MSB) | Button 8 | R2 / RT (デジタル入力時) |
+
+<a id="byte1_map"></a>
+#### Byte 1: ボタン・十字キー詳細 (9-12 & Hat)
+
+| ビット | 内容 | 一般的な名称 |
+| :--- | :--- | :--- |
+| Bit 0 | Button 9 | Select / Back / Share |
+| Bit 1 | Button 10 | Start / Options |
+| Bit 2 | Button 11 | L3 (左スティック押し込み) |
+| Bit 3 | Button 12 | R3 (右スティック押し込み) |
+| Bit 4-7 | Hat Switch | 十字キー (0:上, 2:右, 4:下, 6:左 / 8:中立) |
 
 ※アナログスティックの入力は、内部で8方向のハットスイッチ形式（4ビット）に変換されて送信されます。これにより、3バイトで主要な全操作情報を網羅しています。
 
@@ -150,7 +175,26 @@ RP2350(Master)がCH32X035(Slave)から読み取るデータは以下の**3バイ
 ---
 
 ## 6. 開発・ビルド環境
-* **Toolchain:** xPack RISC-V Embedded GCC 15.2.0-1 以降
+
+### 6.1 ツールチェーン・SDK
+* **Toolchain:** [xPack RISC-V Embedded GCC](https://xpack.github.io/riscv-none-elf-gcc/) 15.2.0-1 以降
 * **Build Tool:** GNU Make
 * **SDK:** WCH ch32x035_evt (v1.0.0+)
 * **Hardware:** CH32X035G8U6, WCH-LinkE
+
+### 6.2 ビルド手順
+
+プロジェクトのルートディレクトリで以下のコマンドを実行します。
+
+```bash
+# プロジェクトのビルド (elf, bin, hexが生成されます)
+make
+
+# ビルド成果物のクリーンアップ
+make clean
+```
+
+ビルドが成功すると、`build/` ディレクトリに以下のファイルが生成されます。
+* `kachkojir_usbpad.bin`: ファームウェアバイナリ
+* `kachkojir_usbpad.hex`: Intel HEX形式
+* `kachkojir_usbpad.elf`: デバッグ用シンボルを含むELFファイル

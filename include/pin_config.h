@@ -8,31 +8,25 @@
 
 #include "ch32x035.h"
 
-/* 共通 極性定義 */
-#define ACTIVE_LOW 0
-#define ACTIVE_HIGH 1
-
 /* ---------- 電源制御 (USB Type-C) ---------- */
 
-/* ロードスイッチ 制御 ピン (Low = ON, High = OFF) - /EN (Active LOW)
+/* ロードスイッチ 制御 ピン - /EN (Active LOW): Low=ON, High=OFF
  * ※ PA1 (Pin 6)。基板上の LED1 としても機能 */
 #define LOADSW_GPIO_PORT GPIOA
 #define LOADSW_GPIO_PIN GPIO_Pin_1
 #define LOADSW_GPIO_CLK RCC_APB2Periph_GPIOA
-#define LOADSW_GPIO_ACTIVE ACTIVE_LOW
 
-#define LOADSW_ON LOADSW_GPIO_ACTIVE == ACTIVE_HIGH
-#define LOADSW_OFF LOADSW_GPIO_ACTIVE == ACTIVE_LOW
+#define LOADSW_ON  Bit_RESET  /* /EN: Low = スイッチON */
+#define LOADSW_OFF Bit_SET    /* /EN: High = スイッチOFF */
 
-/* 過電流検知 (/OC) ピン (Active LOW) */
+/* 過電流検知 (/OC) ピン - Active LOW: Low=障害発生 */
 #define OC_GPIO_PORT GPIOA
 #define OC_GPIO_PIN GPIO_Pin_0
 #define OC_GPIO_CLK RCC_APB2Periph_GPIOA
-#define OC_GPIO_ACTIVE ACTIVE_LOW
 
-#define OC_ON OC_GPIO_ACTIVE == ACTIVE_HIGH
-#define OC_OFF OC_GPIO_ACTIVE == ACTIVE_LOW
-#define OC_EXTI_TRIGGER (OC_GPIO_ACTIVE == ACTIVE_LOW ? EXTI_Trigger_Falling : EXTI_Trigger_Rising)
+#define OC_ON  Bit_RESET           /* /OC: Low = 過電流発生 */
+#define OC_OFF Bit_SET             /* /OC: High = 正常 */
+#define OC_EXTI_TRIGGER EXTI_Trigger_Falling  /* /OC: Low になるとき (Falling) で割り込み */
 
 /* 過電流検知異常 表示 LED (Active HIGH) */
 #define FAULT_LED_GPIO_PORT GPIOC

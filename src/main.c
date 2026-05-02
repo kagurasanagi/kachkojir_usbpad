@@ -23,25 +23,7 @@ int main(void)
 	IWDG_Enable();
 
 	printf("\r\n=== Kachkojir USB Pad ===\r\n");
-
-	// __DATE__="Mmm DD YYYY" を "YYYY-MM-DD" に変換
-	char m[12];
-	strncpy(m, __DATE__, sizeof(m));
-	m[sizeof(m) - 1] = '\0';
-	
-	int yy = ((m[7] - '0') * 1000) + ((m[8] - '0') * 100) + ((m[9] - '0') * 10) + (m[10] - '0');
-	int dd = ((m[4] == ' ' ? '0' : m[4]) - '0') * 10 + (m[5] - '0');
-	
-	const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-	int mm = 1;
-	for (int i = 0; i < 12; i++) {
-		if (strncmp(m, months[i], 3) == 0) {
-			mm = i + 1;
-			break;
-		}
-	}
-
-	printf("Build: %04d-%02d-%02d %s\r\n", yy, mm, dd, __TIME__);
+	print_build_info();
 
 	/* 4. USBホスト初期化 (USBFS + SPIスレーブ + TIM3) */
 	USB_Host_Init_Sequence();

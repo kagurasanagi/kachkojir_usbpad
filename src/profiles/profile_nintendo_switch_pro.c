@@ -7,14 +7,8 @@
  *******************************************************************************/
 
 #include "gamepad_mapper.h"
-#include "usb_host_gamepad.h"  // For threshold macros
-
-/**
- * @brief  [Y][X] Hat Switch Mapping for SPI Data (Byte 2)
- *         Rows (Y): 0 = Up, 1 = Mid, 2 = Down
- *         Cols (X): 0 = Left, 1 = Mid, 2 = Right
- */
-static const uint8_t hat_map[3][3] = {{0x7, 0x0, 0x1}, {0x6, 0xF, 0x2}, {0x5, 0x4, 0x3}};
+#include "profile_common.h"
+#include "usb_host_gamepad.h"  // For threshold macros and Gamepad_Is_Switch_Clone
 
 /* 注意: このファイルの内容は、Switch Pro Controllerを偽装するコントローラーの
  * 異常なレポートで誤作動を起こすのを抑止するために定義されており、

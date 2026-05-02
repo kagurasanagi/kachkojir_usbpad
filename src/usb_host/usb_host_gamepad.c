@@ -23,7 +23,7 @@ uint8_t Gamepad_Report_Buf[64];
 uint8_t Gamepad_Prev_Report_Buf[64];
 uint8_t Gamepad_SPI_Prev[3] = {0};			 // 24ビットバイナリ変更検出用
 static uint8_t Gamepad_Comm_Ready = 0;		 // 1 = HOMEボタン後の通信応答中
-static uint32_t PA2_Last_Success_Time = 0;	 // 有効なPID応答があった最後のシステムタイム
+static uint32_t last_usb_response_time = 0;	 // 有効なPID応答があった最後のシステムタイム
 static uint32_t Gamepad_Data_Last_Time = 0;	 // 有効なデータパケット(ERR_SUCCESS)が到着した最後の時間
 
 /* Shared buffers (Double buffering) */
@@ -426,7 +426,7 @@ void USBH_Process(void)
 						uint8_t res = USBFSH->INT_ST & 0x0F;
 						if (res != 0x00)
 						{
-							PA2_Last_Success_Time = Current_System_Time; /* 応答OK: 成功時間を記録 */
+							last_usb_response_time = Current_System_Time; /* 応答OK: 成功時間を記録 */
 						}
 					}
 
@@ -481,7 +481,7 @@ void USBH_Process(void)
 	if (!(USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH))
 	{
 		/* 物理的に切断(R8_MIS_STビット0 == 0) */
-		PA2_Last_Success_Time = Current_System_Time - 1000;
+		last_usb_response_time = Current_System_Time - 1000;
 		Gamepad_Comm_Ready = 0;
 		memset(Gamepad_SPI_Data, 0, sizeof(Gamepad_SPI_Data));
 		memset(Gamepad_Raw_Report, 0, sizeof(Gamepad_Raw_Report));
@@ -495,7 +495,7 @@ void USBH_Process(void)
 	/* 有効な応答の100msタイムアウトに基づいてGamepad_Comm_Readyを更新 */
 	if (Gamepad_Status == GAMEPAD_ENUMERATED)
 	{
-		Gamepad_Comm_Ready = ((Current_System_Time - PA2_Last_Success_Time) < 100);
+		Gamepad_Comm_Ready = ((Current_System_Time - last_usb_response_time) < 100);
 	}
 	else
 	{

@@ -15,6 +15,7 @@
 
 #include "ch32x035.h"
 #include "stdio.h"
+#include "string.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -51,6 +52,20 @@ extern "C"
 #else
 #define PRINT(X...)
 #endif
+
+/* __DATE__ ("Mmm DD YYYY") を "YYYY-MM-DD HH:MM:SS" 形式で出力する */
+static inline void print_build_info(void)
+{
+    const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+    const char *d = __DATE__;
+    int yy = (d[7]-'0')*1000 + (d[8]-'0')*100 + (d[9]-'0')*10 + (d[10]-'0');
+    int dd = ((d[4]==' ') ? 0 : (d[4]-'0')) * 10 + (d[5]-'0');
+    int mm = 1;
+    for (int i = 0; i < 12; i++) {
+        if (strncmp(d, months[i], 3) == 0) { mm = i + 1; break; }
+    }
+    printf("Build: %04d-%02d-%02d %s\r\n", yy, mm, dd, __TIME__);
+}
 
 #ifdef __cplusplus
 }

@@ -8,7 +8,6 @@
 /* Global communication state */
 static volatile uint8_t spi_rx_cnt = 0;
 static volatile uint8_t spi_curr_cmd = 0;
-uint8_t spi_tx_tmp[SPI_BUFF_SIZE];	// Temporary response buffer
 
 /* Optimization: DMA-based response for reliable jitter-free 1MHz SPI */
 static uint8_t spi_res_null = 0;
