@@ -1,11 +1,3 @@
-/********************************** (C) COPYRIGHT *******************************
- * ファイル名          : usb_host_gamepad.h
- * 著者                : Antigravity
- * バージョン          : V1.0.0
- * 日付                : 2026/04/04
- * 説明                : USB ホスト ゲームパッド 処理 ヘッダー。
- *******************************************************************************/
-
 #ifndef __USB_HOST_GAMEPAD_H
 #define __USB_HOST_GAMEPAD_H
 
@@ -16,8 +8,8 @@ extern "C"
 
 #include <stdint.h>
 
-#include "usb_host_config.h"
 #include "gamepad_mapper.h"
+#include "usb_host_config.h"
 
 /* USB Gamepad Status */
 #define GAMEPAD_DISCONNECT 0

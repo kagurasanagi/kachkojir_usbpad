@@ -1,14 +1,3 @@
-/********************************** (C) COPYRIGHT *******************************
- * File Name          : profile_grapht_omni.c
- * Author             : Antigravity
- * Version            : V1.0.0
- * Date               : 2026/04/24
- * Description        : grapht omni profile
-						nintendo Switch Pro Controllerを偽装している質の悪いコントローラー
-						最初につなげたときはVID=057E, PID=2009を申告するが、
-						Homeボタンを押すとVID=0D22, PID=0C31を申告する
- *******************************************************************************/
-
 #include "gamepad_mapper.h"
 #include "profile_common.h"
 #include "usb_host_gamepad.h"  // For threshold macros
@@ -22,11 +11,11 @@ static ReportStatus_t Profile_Grapht_omni(const uint8_t *report, uint16_t len, u
 {
 	/* Byte 0: ABXYボタンのビット並び替え (bit4-7 はそのまま) */
 	uint8_t b0 = report[0];
-	spi_out[0] = ((b0 & 0x04) >> 2) |  /* bit2 (0x04) → bit0 (0x01) */
-	             ((b0 & 0x02)     ) |  /* bit1 (0x02) → bit1 (0x02) */
-	             ((b0 & 0x08) >> 1) |  /* bit3 (0x08) → bit2 (0x04) */
-	             ((b0 & 0x01) << 3) |  /* bit0 (0x01) → bit3 (0x08) */
-	             ((b0 & 0xF0)     );   /* bit4-7: 変換なし */
+	spi_out[0] = ((b0 & 0x04) >> 2) | /* bit2 (0x04) → bit0 (0x01) */
+				 ((b0 & 0x02)) |	  /* bit1 (0x02) → bit1 (0x02) */
+				 ((b0 & 0x08) >> 1) | /* bit3 (0x08) → bit2 (0x04) */
+				 ((b0 & 0x01) << 3) | /* bit0 (0x01) → bit3 (0x08) */
+				 ((b0 & 0xF0));		  /* bit4-7: 変換なし */
 
 	/* Byte 1 (Buttons 9-16) */
 	spi_out[1] = (report[1] & 0x0F) << 4 | (report[2] & 0x0F);

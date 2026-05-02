@@ -1,11 +1,3 @@
-/********************************** (C) COPYRIGHT *******************************
- * File Name          : profile_default.c
- * Author             : Antigravity
- * Version            : V1.0.0
- * Date               : 2026/04/24
- * Description        : Nintendo Switch Pro Controller Mapping Profile
- *******************************************************************************/
-
 #include "gamepad_mapper.h"
 #include "profile_common.h"
 #include "usb_host_gamepad.h"  // For threshold macros and Gamepad_Is_Switch_Clone
