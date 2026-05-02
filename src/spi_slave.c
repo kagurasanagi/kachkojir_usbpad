@@ -9,10 +9,16 @@
 static volatile uint8_t spi_rx_cnt = 0;
 static volatile uint8_t spi_curr_cmd = 0;
 
-/* Optimization: DMA-based response for reliable jitter-free 1MHz SPI */
+/* Optimization: DMA-based response for reliable jitter-free SPI */
 static uint8_t spi_res_null = 0;
 static uint8_t *spi_tx_ptr = &spi_res_null;
 static uint8_t spi_tx_len = 0;
+
+/* RMW排除用キャッシュ: 初期化後に一度だけ計算し、ISR内で直接書き込む */
+static uint32_t s_dma_cfgr_base;    // ENビットなし
+static uint32_t s_dma_cfgr_enable;  // ENビットあり
+static uint16_t s_spi_ctlr2_dma_on; // TXDMAEN=1
+static uint16_t s_spi_ctlr2_dma_off;// TXDMAEN=0
 
 /* 定数値または構築された値用の静的応答バッファ */
 static uint8_t spi_res_status;
@@ -121,6 +127,14 @@ void SPI1_DMA_Init(void)
 	DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel3, &DMA_InitStructure);
+
+	/* RMW排除用: 初期化完了後のCFGR値をキャッシュ */
+	s_dma_cfgr_base   = DMA1_Channel3->CFGR & ~DMA_CFGR1_EN;
+	s_dma_cfgr_enable = s_dma_cfgr_base | DMA_CFGR1_EN;
+
+	/* RMW排除用: SPI CTLR2のTXDMAEN ON/OFF値をキャッシュ */
+	s_spi_ctlr2_dma_off = SPI1->CTLR2 & ~(uint16_t)SPI_I2S_DMAReq_Tx;
+	s_spi_ctlr2_dma_on  = s_spi_ctlr2_dma_off | (uint16_t)SPI_I2S_DMAReq_Tx;
 }
 
 /**
@@ -145,8 +159,8 @@ void EXTI7_0_IRQHandler(void)
 			/* --- 通信終了 (RISING) : アイドル中に次回の準備を済ませる --- */
 
 			/* CS立ち上がり時にアクティブなDMA転送を即座に停止 */
-			DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
-			SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, DISABLE);
+			DMA1_Channel3->CFGR = s_dma_cfgr_base;
+			SPI1->CTLR2 = s_spi_ctlr2_dma_off;
 
 			/* ハードウェア・ビットカウンタの物理的クリア (SPEトグル)
 			 * 余裕のあるアイドル中に行うことで、次回の通信は「準備完了」からスタート
@@ -241,14 +255,12 @@ void SPI1_IRQHandler(void)
 
 			if (spi_tx_len > 0)
 			{
-				/* 成功モデル: memcpy を削除し、DMA をバッファに直結 (Success Point #2)
-				 */
-				DMA1_Channel3->CFGR &= ~DMA_CFGR1_EN;
+				/* RMWなしの直接書き込みでDMAセットアップ時間を短縮 */
+				DMA1_Channel3->CFGR  = s_dma_cfgr_base;
 				DMA1_Channel3->MADDR = (uint32_t)spi_tx_ptr;
-				DMA1_Channel3->CNTR = spi_tx_len;
-				DMA1_Channel3->CFGR |= DMA_CFGR1_EN;
-
-				SPI_I2S_DMACmd(SPI1, SPI_I2S_DMAReq_Tx, ENABLE);
+				DMA1_Channel3->CNTR  = spi_tx_len;
+				DMA1_Channel3->CFGR  = s_dma_cfgr_enable;
+				SPI1->CTLR2          = s_spi_ctlr2_dma_on;
 			}
 			else
 			{
